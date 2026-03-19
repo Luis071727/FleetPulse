@@ -1,0 +1,129 @@
+/* ── Google Fonts ── */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
+
+/* ── Design Tokens ── */
+:root {
+  color-scheme: dark;
+  --bg: #080c10;
+  --surface: #0d1318;
+  --border: #1e2d3d;
+  --amber: #f59e0b;
+  --green: #22c55e;
+  --red: #ef4444;
+  --blue: #38bdf8;
+  --mist: #64748b;
+  --white: #f0f6fc;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: 'IBM Plex Sans', sans-serif;
+  background: var(--bg);
+  color: var(--white);
+}
+
+/* ── Font Utility Classes ── */
+.fp-mono { font-family: 'IBM Plex Mono', monospace; }
+.fp-serif { font-family: 'DM Serif Display', serif; }
+
+/* ── Spinner for AI loading states ── */
+@keyframes fp-spin {
+  to { transform: rotate(360deg); }
+}
+.fp-spinner {
+  display: inline-block;
+  width: 20px; height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: fp-spin 0.7s linear infinite;
+}
+.fp-spinner--lg { width: 32px; height: 32px; border-width: 3px; }
+
+/* ── IRS Ring Animation ── */
+@keyframes irs-fill {
+  from { --irs-pct: 0; }
+}
+.irs-ring {
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: conic-gradient(var(--amber) calc(var(--irs-pct, 0) * 1%), var(--border) 0);
+  transition: --irs-pct 0.8s ease-out;
+  animation: irs-fill 0.8s ease-out;
+}
+@property --irs-pct {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+.irs-ring__inner {
+  width: 100px; height: 100px;
+  border-radius: 50%;
+  background: var(--surface);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column;
+}
+
+/* ── Responsive Breakpoints ── */
+
+/* Hamburger toggle — hidden by default, shown below 720px */
+.fp-hamburger { display: none; }
+.fp-sidebar-backdrop { display: none; }
+
+/* Tables scroll on small screens */
+.fp-table-wrap { overflow-x: auto; }
+
+/* KPI strip responsive */
+.fp-kpi-strip { display: grid; gap: 12px; grid-template-columns: repeat(5, 1fr); }
+
+/* Dashboard 2-col panel */
+.fp-dash-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+@media (max-width: 1100px) {
+  .fp-kpi-strip { grid-template-columns: repeat(3, 1fr); }
+  /* Detail drawer becomes overlay (handled inline by component) */
+}
+
+@media (max-width: 860px) {
+  .fp-kpi-strip { grid-template-columns: repeat(2, 1fr); }
+  .fp-dash-panels { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  .fp-hamburger { display: block; }
+  .fp-sidebar { display: none !important; }
+  .fp-sidebar--open { display: flex !important; position: fixed; left: 0; top: 0; bottom: 0; z-index: 200; }
+  .fp-sidebar-backdrop--open { display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 199; }
+  .fp-kpi-strip { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 480px) {
+  .fp-kpi-strip { grid-template-columns: 1fr; }
+  .fp-table-wrap table { min-width: 600px; }
+}
+
+/* ── Filter Chip (amber active state) ── */
+.fp-chip {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  color: var(--white);
+  font-size: 13px;
+  cursor: pointer;
+  background: var(--surface);
+  transition: all 0.15s;
+}
+.fp-chip:hover { border-color: var(--mist); }
+.fp-chip--active {
+  background: transparent;
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--mist); }

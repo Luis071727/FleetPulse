@@ -1,0 +1,9 @@
+--run backend
+cd "c:\Users\lbenitez\Desktop\Specs Test\fleetpulse-dispatcher\backend"; python -m uvicorn app.main:app --reload --port 8000
+
+--run frontend
+cd "c:\Users\lbenitez\Desktop\Specs Test\fleetpulse-dispatcher\frontend"; npm run dev -- -p 3001
+
+
+--compile backend
+cd "c:\Users\lbenitez\Desktop\Specs Test\fleetpulse-dispatcher\backend"; python -c "import py_compile; py_compile.compile('app/loads/routes.py', doraise=True); py_compile.compile('app/invoices/routes.py', doraise=True); print('OK')"

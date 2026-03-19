@@ -1,0 +1,28 @@
+# Node.js / frontend
+node_modules/
+dist/
+build/
+.next/
+coverage/
+
+# Python / backend
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Env and logs
+.env
+.env.local
+.env.*.local
+*.log
+
+# OS/editor
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/

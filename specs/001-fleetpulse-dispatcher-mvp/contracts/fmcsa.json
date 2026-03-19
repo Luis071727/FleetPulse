@@ -1,0 +1,183 @@
+{
+  "api": "FMCSA Integration",
+  "version": "1.0.0",
+  "baseUrl": "/api/v1/fmcsa",
+  "description": "Internal API for FMCSA SAFER (Safety and Fitness Electronic Records) lookups with automatic 24-hour caching. Public endpoints exposed via carriers.json and brokers.json; these are infrastructure integration points only.",
+  "endpoints": [
+    {
+      "name": "[Internal] Lookup Carrier by DOT",
+      "method": "GET",
+      "path": "/carrier/{dot_number}",
+      "description": "Query FMCSA SAFER for carrier data, cache for 24 hours",
+      "auth": "Bearer (backend-only, secret key)",
+      "pathParams": {
+        "dot_number": { "type": "integer", "example": 3268308 }
+      },
+      "queryParams": {
+        "type": "object",
+        "properties": {
+          "force_refresh": {
+            "type": "boolean",
+            "default": false,
+            "description": "Bypass cache and pull fresh data from FMCSA"
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Carrier data retrieved (from cache or FMCSA)",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "dot_number": { "type": "integer" },
+                  "legal_name": { "type": "string" },
+                  "dba": { "type": "string", "nullable": true },
+                  "mc_number": { "type": "string", "nullable": true },
+                  "authority_status": {
+                    "type": "string",
+                    "enum": ["active", "inactive", "unknown"]
+                  },
+                  "operating_status": { "type": "string" },
+                  "type_equipment": { "type": "array", "items": { "type": "string" } },
+                  "operation_classification": { "type": "string" },
+                  "phone": { "type": "string", "nullable": true },
+                  "mailing_address": { "type": "string" },
+                  "out_of_service_date": { "type": "string", "nullable": true }
+                }
+              },
+              "cached": {
+                "type": "boolean",
+                "description": "true if retrieved from fmcsa_cache table; false if fresh from FMCSA"
+              },
+              "cache_expires_at": { "type": "string", "format": "date-time" },
+              "error": { "type": "null" }
+            }
+          }
+        },
+        "404": {
+          "description": "DOT number not found in FMCSA",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": { "type": "null" },
+              "error": {
+                "type": "string",
+                "example": "DOT 3268308 not found in FMCSA records"
+              },
+              "cached": { "type": "boolean" }
+            }
+          }
+        },
+        "503": {
+          "description": "FMCSA API unavailable",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": { "type": "null" },
+              "error": { "type": "string", "example": "FMCSA SAFER API timeout" },
+              "retry_after_seconds": { "type": "integer" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "[Internal] Lookup Broker by MC Number",
+      "method": "GET",
+      "path": "/broker/{mc_number}",
+      "description": "Query FMCSA for broker authority and operating status, cache for 24 hours",
+      "auth": "Bearer (backend-only, secret key)",
+      "pathParams": {
+        "mc_number": {
+          "type": "string",
+          "pattern": "^[0-9]+$|^MC[0-9]+$",
+          "example": "123456"
+        }
+      },
+      "queryParams": {
+        "type": "object",
+        "properties": {
+          "force_refresh": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Broker authority data",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "mc_number": { "type": "string" },
+                  "legal_name": { "type": "string" },
+                  "dba": { "type": "string", "nullable": true },
+                  "authority_status": {
+                    "type": "string",
+                    "enum": ["active", "inactive", "unknown"]
+                  },
+                  "authority_issued_date": { "type": "string", "format": "date", "nullable": true },
+                  "operation_classification": { "type": "string" },
+                  "type_operation": { "type": "array", "items": { "type": "string" } },
+                  "phone": { "type": "string", "nullable": true },
+                  "mailing_address": { "type": "string" }
+                }
+              },
+              "cached": { "type": "boolean" },
+              "cache_expires_at": { "type": "string", "format": "date-time" },
+              "error": { "type": "null" }
+            }
+          }
+        },
+        "404": {
+          "description": "MC number not found",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": { "type": "null" },
+              "error": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "caching_strategy": {
+    "description": "All FMCSA lookups are cached in fmcsa_cache table with 24-hour TTL",
+    "details": {
+      "table": "fmcsa_cache",
+      "columns": [
+        "id (uuid)",
+        "lookup_type (enum: carrier|broker)",
+        "dot_number or mc_number (indexed)",
+        "response_json (jsonb, full FMCSA response)",
+        "http_status_code (200|404|503)",
+        "cached_at (timestamp)",
+        "expires_at (timestamp, cached_at + 24h)"
+      ],
+      "cache_hit_behavior": "Query cache before calling external API; if hit and not expired, return immediately with cached=true",
+      "cache_miss_behavior": "Call FMCSA SAFER API; UPSERT result into fmcsa_cache; return with cached=false",
+      "cost_impact": "Prevents FMCSA quota exhaustion (~10,000 requests/month free tier); reduces latency on repeated lookups"
+    }
+  },
+  "fmcsa_safer_api_details": {
+    "description": "FMCSA SAFER API (https://publicsearch.fmcsa.dot.gov/) is free, rate-limited, and provides carrier + broker authority data",
+    "authentication": "API key required (obtained from FMCSA portal)",
+    "rate_limit": "~1000 requests/hour (conservative estimate; real limit higher)",
+    "response_format": "XML or JSON (FleetPulse uses JSON conversion)",
+    "timeout": "30 seconds (set on HTTP client)",
+    "fallback": "If FMCSA unavailable, return 503; dispatcher can manually enter carrier data (soft fail for Phase 1)"
+  },
+  "error_handling": {
+    "fmcsa_unavailable": "Return 503 Service Unavailable; suggest retry after 5 minutes",
+    "invalid_dot_or_mc": "Return 400 Bad Request; dispatcher must check number format",
+    "cached_but_expired": "Treat as cache miss; fetch fresh data from FMCSA",
+    "partial_data": "Return 200 with null fields for missing FMCSA fields (e.g., dba may be null)"
+  }
+}

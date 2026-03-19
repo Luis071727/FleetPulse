@@ -1,0 +1,277 @@
+{
+  "api": "Carriers",
+  "version": "1.0.0",
+  "baseUrl": "/api/v1/carriers",
+  "endpoints": [
+    {
+      "name": "List Carriers",
+      "method": "GET",
+      "path": "/",
+      "description": "Fetch carrier roster (dispatcher view) or own carrier details (carrier view)",
+      "auth": "Bearer (dispatcher_admin, carrier_*)",
+      "queryParams": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["active", "idle", "issues"],
+            "description": "Filter by status. Dispatcher only."
+          },
+          "search": {
+            "type": "string",
+            "description": "Search by carrier name, MC number, or DOT number (case-insensitive partial match)"
+          },
+          "sort_by": {
+            "type": "string",
+            "enum": ["legal_name", "status", "created_at", "irs_score"],
+            "default": "legal_name",
+            "description": "Sort column"
+          },
+          "order": {
+            "type": "string",
+            "enum": ["asc", "desc"],
+            "default": "asc",
+            "description": "Sort direction"
+          },
+          "limit": { "type": "integer", "default": 50, "maximum": 500 },
+          "offset": { "type": "integer", "default": 0 }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Carrier list (RLS-scoped to organization or specific carrier)",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": { "$ref": "#/definitions/Carrier" }
+              },
+              "meta": {
+                "type": "object",
+                "properties": {
+                  "total": { "type": "integer" },
+                  "limit": { "type": "integer" },
+                  "offset": { "type": "integer" }
+                }
+              },
+              "error": { "type": "null" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Create Carrier (DOT Lookup)",
+      "method": "POST",
+      "path": "/",
+      "description": "Add new carrier via FMCSA DOT number lookup (P1 gate)",
+      "auth": "Bearer (dispatcher_admin only)",
+      "requestBody": {
+        "type": "object",
+        "required": ["dot_number"],
+        "properties": {
+          "dot_number": { "type": "integer", "example": 3268308 },
+          "notes": { "type": "string", "nullable": true }
+        }
+      },
+      "responses": {
+        "201": {
+          "description": "Carrier created and FMCSA data cached",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/definitions/Carrier" },
+              "error": { "type": "null" }
+            }
+          }
+        },
+        "400": {
+          "description": "Invalid DOT or duplicate",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": { "type": "null" },
+              "error": { "type": "string", "example": "DOT 3268308 already in roster" },
+              "error_code": { "type": "string", "enum": ["INVALID_DOT", "DUPLICATE_CARRIER", "VALIDATION_ERROR"], "example": "DUPLICATE_CARRIER" }
+            }
+          }
+        },
+        "503": {
+          "description": "FMCSA lookup failed",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": { "type": "null" },
+              "error": { "type": "string", "example": "FMCSA service unavailable" },
+              "error_code": { "type": "string", "example": "FMCSA_UNAVAILABLE" },
+              "retry_after_seconds": { "type": "integer", "example": 300 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Get Carrier Details",
+      "method": "GET",
+      "path": "/{carrier_id}",
+      "description": "Fetch single carrier with loads, invoices, CSA snapshot",
+      "auth": "Bearer",
+      "pathParams": {
+        "carrier_id": { "type": "string", "format": "uuid" }
+      },
+      "responses": {
+        "200": {
+          "description": "Carrier detail (RLS-scoped)",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "allOf": [{ "$ref": "#/definitions/Carrier" }],
+                "properties": {
+                  "loads": {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/Load" },
+                    "description": "Recent loads (last 30 days or open)"
+                  },
+                  "invoices": {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/Invoice" },
+                    "description": "Recent invoices (last 90 days)"
+                  },
+                  "csa_snapshot": {
+                    "type": "object",
+                    "description": "Latest CSA BASIC percentiles if Phase 2"
+                  }
+                }
+              },
+              "error": { "type": "null" }
+            }
+          }
+        },
+        "404": {
+          "description": "Carrier not found or not in your organization",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": { "type": "null" },
+              "error": { "type": "string" },
+              "error_code": { "type": "string", "example": "NOT_FOUND" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Update Carrier",
+      "method": "PATCH",
+      "path": "/{carrier_id}",
+      "description": "Update carrier contact, notes, or portal status",
+      "auth": "Bearer",
+      "pathParams": {
+        "carrier_id": { "type": "string", "format": "uuid" }
+      },
+      "requestBody": {
+        "type": "object",
+        "properties": {
+          "contact_name": { "type": "string" },
+          "contact_email": { "type": "string", "format": "email" },
+          "contact_phone": { "type": "string" },
+          "notes": { "type": "string" },
+          "portal_status": {
+            "type": "string",
+            "enum": ["pending", "active", "inactive"],
+            "description": "Dispatcher only"
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Carrier updated",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/definitions/Carrier" },
+              "error": { "type": "null" }
+            }
+          }
+        },
+        "403": {
+          "description": "Not authorized to update",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": { "type": "null" },
+              "error": { "type": "string" },
+              "error_code": { "type": "string", "example": "UNAUTHORIZED_ROLE" }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "Carrier": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "organization_id": { "type": "string", "format": "uuid" },
+        "dot_number": { "type": "integer" },
+        "mc_number": { "type": "string", "nullable": true },
+        "legal_name": { "type": "string" },
+        "dba": { "type": "string", "nullable": true },
+        "status": {
+          "type": "string",
+          "enum": ["active", "idle", "issues"],
+          "description": "Auto-computed from loads, invoices, CSA alerts"
+        },
+        "contact_name": { "type": "string" },
+        "contact_email": { "type": "string", "format": "email" },
+        "contact_phone": { "type": "string", "nullable": true },
+        "portal_status": {
+          "type": "string",
+          "enum": ["pending", "active", "inactive"]
+        },
+        "irs_score": { "type": "number", "nullable": true, "description": "Phase 2" },
+        "renewal_date": { "type": "string", "format": "date", "nullable": true },
+        "fmcsa_status": { "type": "string", "example": "active" },
+        "fmcsa_last_pulled_at": { "type": "string", "format": "date-time" },
+        "notes": { "type": "string", "nullable": true },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Load": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "carrier_id": { "type": "string", "format": "uuid" },
+        "broker_id": { "type": "string", "format": "uuid" },
+        "pickup_date": { "type": "string", "format": "date" },
+        "delivery_date": { "type": "string", "format": "date" },
+        "rate": { "type": "number", "example": 2500 },
+        "miles": { "type": "integer" },
+        "rpm": { "type": "number", "example": 2.08 },
+        "net_profit": { "type": "number" },
+        "net_rpm": { "type": "number" },
+        "ai_recommendation": { "type": "string", "enum": ["GO", "NEGOTIATE", "PASS"] },
+        "status": { "type": "string", "enum": ["proposed", "accepted", "delivered", "invoiced"] }
+      }
+    },
+    "Invoice": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "load_id": { "type": "string", "format": "uuid" },
+        "carrier_id": { "type": "string", "format": "uuid" },
+        "amount": { "type": "number" },
+        "issued_date": { "type": "string", "format": "date" },
+        "due_date": { "type": "string", "format": "date" },
+        "days_outstanding": { "type": "integer", "description": "GENERATED ALWAYS AS (CURRENT_DATE - issued_date)" },
+        "status": { "type": "string", "enum": ["draft", "sent", "paid", "overdue"] },
+        "follow_up_count": { "type": "integer" }
+      }
+    }
+  }
+}

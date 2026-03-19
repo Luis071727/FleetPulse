@@ -1,0 +1,306 @@
+{
+  "api": "Loads",
+  "version": "1.0.0",
+  "baseUrl": "/api/v1/loads",
+  "endpoints": [
+    {
+      "name": "List Loads",
+      "method": "GET",
+      "path": "/",
+      "description": "Fetch loads for dispatcher or single carrier",
+      "auth": "Bearer (dispatcher_admin, carrier_*)",
+      "queryParams": {
+        "type": "object",
+        "properties": {
+          "carrier_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Filter by carrier (dispatcher only)"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["proposed", "accepted", "delivered", "invoiced"],
+            "description": "Filter by status"
+          },
+          "days": {
+            "type": "integer",
+            "default": 30,
+            "description": "Lookback window in days"
+          },
+          "sort_by": {
+            "type": "string",
+            "enum": ["pickup_date", "delivery_date", "rate", "net_profit", "created_at"],
+            "default": "created_at",
+            "description": "Sort column"
+          },
+          "order": {
+            "type": "string",
+            "enum": ["asc", "desc"],
+            "default": "desc",
+            "description": "Sort direction"
+          },
+          "limit": { "type": "integer", "default": 100, "maximum": 500 },
+          "offset": { "type": "integer", "default": 0 }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Load list (RLS-scoped)",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": { "$ref": "#/definitions/Load" }
+              },
+              "meta": {
+                "type": "object",
+                "properties": {
+                  "total": { "type": "integer" },
+                  "limit": { "type": "integer" },
+                  "offset": { "type": "integer" }
+                }
+              },
+              "error": { "type": "null" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Create Load (with AI Analysis)",
+      "method": "POST",
+      "path": "/",
+      "description": "Create load and trigger AI recommendation (P3 gate). Auto-creates peer invoice.",
+      "auth": "Bearer (dispatcher_admin only)",
+      "requestBody": {
+        "type": "object",
+        "required": ["carrier_id", "broker_id", "pickup_date", "delivery_date", "rate", "miles"],
+        "properties": {
+          "carrier_id": { "type": "string", "format": "uuid" },
+          "broker_id": { "type": "string", "format": "uuid" },
+          "pickup_date": { "type": "string", "format": "date" },
+          "delivery_date": { "type": "string", "format": "date" },
+          "rate": { "type": "number", "description": "Load rate in USD" },
+          "miles": { "type": "integer" },
+          "fuel_cost": { "type": "number", "nullable": true, "default": "null (computed)" },
+          "driver_cost": { "type": "number", "nullable": true, "default": "null (computed)" },
+          "tolls": { "type": "number", "nullable": true, "default": 0 },
+          "route": { "type": "string", "nullable": true, "description": "Origin → Destination text" }
+        }
+      },
+      "responses": {
+        "201": {
+          "description": "Load created with AI recommendation and invoice",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "load": { "$ref": "#/definitions/Load" },
+                  "invoice": { "$ref": "#/definitions/Invoice" },
+                  "ai_analysis": {
+                    "type": "object",
+                    "properties": {
+                      "recommendation": { "type": "string", "enum": ["GO", "NEGOTIATE", "PASS"] },
+                      "reasoning": { "type": "string" },
+                      "summary_metrics": {
+                        "type": "object",
+                        "properties": {
+                          "rpm": { "type": "number" },
+                          "net_rpm": { "type": "number" },
+                          "broker_trust_score": { "type": "number" },
+                          "carrier_status": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "error": { "type": "null" }
+            }
+          }
+        },
+        "400": {
+          "description": "Validation error",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": { "type": "null" },
+              "error": { "type": "string", "example": "rate must be > 0" },
+              "error_code": { "type": "string", "enum": ["VALIDATION_ERROR", "INVALID_CARRIER", "INVALID_BROKER"], "example": "VALIDATION_ERROR" }
+            }
+          }
+        },
+        "503": {
+          "description": "AI analysis service unavailable",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": { "type": "null" },
+              "error": { "type": "string", "example": "Claude API rate limit" },
+              "error_code": { "type": "string", "example": "AI_SERVICE_UNAVAILABLE" },
+              "retry_after_seconds": { "type": "integer", "example": 30 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Get Load Details",
+      "method": "GET",
+      "path": "/{load_id}",
+      "description": "Fetch single load with AI reasoning and invoice",
+      "auth": "Bearer",
+      "pathParams": {
+        "load_id": { "type": "string", "format": "uuid" }
+      },
+      "responses": {
+        "200": {
+          "description": "Load detail",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "allOf": [{ "$ref": "#/definitions/Load" }],
+                "properties": {
+                  "ai_response": {
+                    "type": "object",
+                    "description": "Cached Claude response with reasoning",
+                    "properties": {
+                      "recommendation": { "type": "string" },
+                      "reasoning": { "type": "string" },
+                      "cached": { "type": "boolean", "description": "true if cache hit during load creation" }
+                    }
+                  },
+                  "invoice": { "$ref": "#/definitions/Invoice" },
+                  "broker": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "format": "uuid" },
+                      "legal_name": { "type": "string" },
+                      "trust_score": { "type": "number" }
+                    }
+                  }
+                }
+              },
+              "error": { "type": "null" }
+            }
+          }
+        },
+        "404": {
+          "description": "Load not found or not in your organization",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": { "type": "null" },
+              "error": { "type": "string" },
+              "error_code": { "type": "string", "example": "NOT_FOUND" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Update Load Status",
+      "method": "PATCH",
+      "path": "/{load_id}",
+      "description": "Update load status (proposed → accepted → delivered)",
+      "auth": "Bearer",
+      "pathParams": {
+        "load_id": { "type": "string", "format": "uuid" }
+      },
+      "requestBody": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["proposed", "accepted", "delivered", "invoiced"],
+            "description": "New status. Transitions are validated server-side."
+          },
+          "actual_delivery_date": { "type": "string", "format": "date", "description": "Required if moving to delivered" }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Load updated",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": { "$ref": "#/definitions/Load" },
+              "error": { "type": "null" }
+            }
+          }
+        },
+        "409": {
+          "description": "Invalid state transition",
+          "body": {
+            "type": "object",
+            "properties": {
+              "data": { "type": "null" },
+              "error": { "type": "string", "example": "Cannot move back from delivered to accepted" },
+              "error_code": { "type": "string", "example": "INVALID_STATE_TRANSITION" }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "Load": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "organization_id": { "type": "string", "format": "uuid" },
+        "carrier_id": { "type": "string", "format": "uuid" },
+        "broker_id": { "type": "string", "format": "uuid" },
+        "pickup_date": { "type": "string", "format": "date" },
+        "delivery_date": { "type": "string", "format": "date" },
+        "actual_delivery_date": { "type": "string", "format": "date", "nullable": true },
+        "rate": { "type": "number", "description": "Load rate in USD, e.g., 2500" },
+        "miles": { "type": "integer" },
+        "route": { "type": "string", "nullable": true },
+        "fuel_cost": { "type": "number", "nullable": true },
+        "driver_cost": { "type": "number", "nullable": true },
+        "tolls": { "type": "number", "default": 0 },
+        "gross_profit": { "type": "number", "description": "rate - (fuel + driver + tolls)" },
+        "net_profit": { "type": "number", "description": "gross_profit - variable costs" },
+        "rpm": { "type": "number", "description": "rate / miles" },
+        "net_rpm": { "type": "number", "description": "net_profit / miles" },
+        "status": {
+          "type": "string",
+          "enum": ["proposed", "accepted", "delivered", "invoiced"]
+        },
+        "ai_recommendation": {
+          "type": "string",
+          "enum": ["GO", "NEGOTIATE", "PASS"],
+          "description": "Generated on creation via Claude + prompt caching"
+        },
+        "ai_response_id": { "type": "string", "format": "uuid", "nullable": true },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Invoice": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "load_id": { "type": "string", "format": "uuid" },
+        "carrier_id": { "type": "string", "format": "uuid" },
+        "broker_id": { "type": "string", "format": "uuid" },
+        "amount": { "type": "number" },
+        "issued_date": { "type": "string", "format": "date" },
+        "due_date": { "type": "string", "format": "date" },
+        "paid_date": { "type": "string", "format": "date", "nullable": true },
+        "days_outstanding": {
+          "type": "integer",
+          "description": "GENERATED ALWAYS AS (CURRENT_DATE - issued_date)"
+        },
+        "status": { "type": "string", "enum": ["draft", "sent", "paid", "overdue"] },
+        "follow_up_count": { "type": "integer", "default": 0 }
+      }
+    }
+  }
+}
