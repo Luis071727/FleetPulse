@@ -169,7 +169,7 @@ export default function InvoicePage() {
       {/* Add Invoice Modal */}
       {showAddInvoice && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100 }}>
-          <div style={{ background: "var(--surface)", borderRadius: 12, padding: 24, width: 480, maxHeight: "80vh", overflowY: "auto", border: "1px solid var(--border)" }}>
+          <div className="fp-modal" style={{ background: "var(--surface)", borderRadius: 12, padding: 24, width: 480, maxHeight: "80vh", overflowY: "auto", border: "1px solid var(--border)" }}>
             <button type="button" onClick={() => setShowAddInvoice(false)}
               style={{ float: "right", background: "none", border: "none", color: "var(--mist)", cursor: "pointer", display: "flex", alignItems: "center" }}><X size={18} /></button>
             <AddInvoiceModal onComplete={() => { setShowAddInvoice(false); fetchInvoices(); }} />
@@ -232,7 +232,7 @@ function EditInvoiceModal({ invoice, carriers, onClose, onSaved }: {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100 }}
       onClick={onClose}>
-      <div style={{ background: "var(--surface)", borderRadius: 12, padding: 24, width: 480, maxHeight: "80vh", overflowY: "auto", border: "1px solid var(--border)" }}
+      <div className="fp-modal" style={{ background: "var(--surface)", borderRadius: 12, padding: 24, width: 480, maxHeight: "80vh", overflowY: "auto", border: "1px solid var(--border)" }}
         onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Edit Invoice</h2>
@@ -240,7 +240,7 @@ function EditInvoiceModal({ invoice, carriers, onClose, onSaved }: {
             style={{ background: "none", border: "none", color: "var(--mist)", cursor: "pointer", display: "flex", alignItems: "center" }}><X size={18} /></button>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+        <div className="fp-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
           <div>
             <label style={lblStyle}>Carrier</label>
             <select value={carrierId} onChange={(e) => setCarrierId(e.target.value)} style={inpStyle}>

@@ -146,7 +146,7 @@ export default function DetailDrawer({ carrierName, carrier, onLogLoad, onCarrie
 
       {/* FMCSA / Fleet Details */}
       <SectionHeader>FMCSA Details</SectionHeader>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+      <div className="fp-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
         <KV label="DOT #" value={d.dot_number as string} />
         <KV label="MC #" value={d.mc_number as string} />
         <KV label="Authority" value={d.authority_status as string} />
@@ -159,7 +159,7 @@ export default function DetailDrawer({ carrierName, carrier, onLogLoad, onCarrie
 
       {/* Owner & Contact Info */}
       <SectionHeader>Owner & Contact</SectionHeader>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+      <div className="fp-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
         <KV label="Owner Name" value={d.owner_name as string} />
         <KV label="Company Phone" value={d.phone as string} />
         <KV label="Email" value={d.email as string} />
@@ -169,7 +169,7 @@ export default function DetailDrawer({ carrierName, carrier, onLogLoad, onCarrie
       {(d.contact_name || d.contact_email || d.contact_phone) && (
         <>
           <SectionHeader>Dispatcher Contact</SectionHeader>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+          <div className="fp-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
             <KV label="Name" value={d.contact_name as string} />
             <KV label="Email" value={d.contact_email as string} />
             <KV label="Phone" value={d.contact_phone as string} />

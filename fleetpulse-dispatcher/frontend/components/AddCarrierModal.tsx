@@ -168,7 +168,7 @@ export default function AddCarrierModal({ onComplete }: Props) {
           <p style={{ fontSize: 11, color: "var(--mist)", margin: "0 0 8px" }}>
             Carrier will be marked as &quot;Not Verified&quot; until FMCSA data is confirmed.
           </p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+          <div className="fp-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
             <input placeholder="Legal Name *" value={manualName} onChange={(e) => setManualName(e.target.value)} style={inputStyle} />
             <input placeholder="MC Number" value={manualMc} onChange={(e) => setManualMc(e.target.value)} style={inputStyle} />
             <input placeholder="Address" value={manualAddress} onChange={(e) => setManualAddress(e.target.value)} style={inputStyle} />

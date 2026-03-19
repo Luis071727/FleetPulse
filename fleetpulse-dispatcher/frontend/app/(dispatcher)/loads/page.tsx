@@ -94,6 +94,7 @@ export default function LoadsPage() {
       </p>
 
       {/* Loads table */}
+      <div className="fp-table-wrap">
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr style={{ borderBottom: "1px solid #1e293b" }}>
@@ -189,12 +190,13 @@ export default function LoadsPage() {
           )}
         </tbody>
       </table>
+      </div>
 
       {/* AI Analysis Result Overlay */}
       {aiResult && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100 }}
           onClick={() => setAiResult(null)}>
-          <div style={{ background: "#0f172a", borderRadius: 12, padding: 24, width: 480, border: "1px solid #1e293b" }}
+          <div className="fp-modal" style={{ background: "#0f172a", borderRadius: 12, padding: 24, width: 480, border: "1px solid #1e293b" }}
             onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <h3 style={{ margin: 0, fontSize: 16 }}>AI Load Analysis</h3>
@@ -219,7 +221,7 @@ export default function LoadsPage() {
       {/* Add Load Modal */}
       {showAddLoad && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100 }}>
-          <div style={{ background: "#0f172a", borderRadius: 12, padding: 24, width: 480, maxHeight: "80vh", overflowY: "auto", border: "1px solid #1e293b" }}>
+          <div className="fp-modal" style={{ background: "#0f172a", borderRadius: 12, padding: 24, width: 480, maxHeight: "80vh", overflowY: "auto", border: "1px solid #1e293b" }}>
             <button type="button" onClick={() => setShowAddLoad(false)}
               style={{ float: "right", background: "none", border: "none", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center" }}><X size={18} /></button>
             <LogLoadModal onComplete={() => { setShowAddLoad(false); fetchLoads(); }} />
@@ -311,7 +313,7 @@ function EditLoadModal({ load, carriers, onClose, onSaved }: {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100 }}
       onClick={onClose}>
-      <div style={{ background: "#0f172a", borderRadius: 12, padding: 24, width: 520, maxHeight: "80vh", overflowY: "auto", border: "1px solid #1e293b" }}
+      <div className="fp-modal" style={{ background: "#0f172a", borderRadius: 12, padding: 24, width: 520, maxHeight: "80vh", overflowY: "auto", border: "1px solid #1e293b" }}
         onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Edit Load</h2>
@@ -319,7 +321,7 @@ function EditLoadModal({ load, carriers, onClose, onSaved }: {
             style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center" }}><X size={18} /></button>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+        <div className="fp-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
           <div><label style={labelStyle}>Origin</label><input value={origin} onChange={e => setOrigin(e.target.value)} style={inputStyle} placeholder="City, ST" /></div>
           <div><label style={labelStyle}>Destination</label><input value={destination} onChange={e => setDestination(e.target.value)} style={inputStyle} placeholder="City, ST" /></div>
           <div><label style={labelStyle}>Miles</label><input type="number" value={miles} onChange={e => setMiles(e.target.value)} style={inputStyle} /></div>
@@ -332,7 +334,7 @@ function EditLoadModal({ load, carriers, onClose, onSaved }: {
 
         <div style={{ borderTop: "1px solid #1e293b", paddingTop: 12, marginBottom: 14 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: "#f8fafc" }}>Financials</span>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
+          <div className="fp-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
             <div><label style={labelStyle}>Rate ($)</label><input type="number" value={rate} onChange={e => setRate(e.target.value)} style={inputStyle} /></div>
             <div><label style={labelStyle}>Driver Pay ($)</label><input type="number" value={driverPay} onChange={e => setDriverPay(e.target.value)} style={inputStyle} /></div>
             <div><label style={labelStyle}>Fuel Cost ($)</label><input type="number" value={fuelCost} onChange={e => setFuelCost(e.target.value)} style={inputStyle} /></div>

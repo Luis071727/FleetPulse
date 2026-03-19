@@ -260,7 +260,7 @@ export default function CarrierRosterPage() {
         <>
         <div onClick={() => { setSelectedCarrier(null); setInviteMsg(""); }}
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 49 }} />
-        <div style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: 400, background: "var(--surface)",
+        <div className="fp-drawer" style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: 400, background: "var(--surface)",
           borderLeft: "1px solid var(--border)", padding: 20, overflowY: "auto", zIndex: 50 }}>
           <button type="button" onClick={() => { setSelectedCarrier(null); setInviteMsg(""); }}
             style={{ float: "right", background: "none", border: "none", color: "var(--mist)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center" }}>
@@ -304,7 +304,7 @@ export default function CarrierRosterPage() {
       {/* Add Carrier Modal */}
       {showAddModal && (
         <div style={overlayStyle}>
-          <div style={modalStyle}>
+          <div className={modalClass} style={modalStyle}>
             <button type="button" onClick={() => setShowAddModal(false)}
               style={{ float: "right", background: "none", border: "none", color: "var(--mist)", cursor: "pointer", display: "flex", alignItems: "center" }}><X size={18} /></button>
             <AddCarrierModal onComplete={() => { setShowAddModal(false); fetchCarriers(); }} />
@@ -315,7 +315,7 @@ export default function CarrierRosterPage() {
       {/* Log Load Modal */}
       {showLogLoad && selectedCarrier && (
         <div style={overlayStyle}>
-          <div style={modalStyle}>
+          <div className={modalClass} style={modalStyle}>
             <button type="button" onClick={() => setShowLogLoad(false)}
               style={{ float: "right", background: "none", border: "none", color: "var(--mist)", cursor: "pointer", display: "flex", alignItems: "center" }}><X size={18} /></button>
             <LogLoadModal carrierId={selectedCarrier.id as string} onComplete={() => setShowLogLoad(false)} />
@@ -365,3 +365,4 @@ const modalStyle: React.CSSProperties = {
   background: "var(--surface)", borderRadius: 12, padding: 24, width: 480,
   maxHeight: "80vh", overflowY: "auto", border: "1px solid var(--border)",
 };
+const modalClass = "fp-modal";

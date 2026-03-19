@@ -82,7 +82,7 @@ export default function AddInvoiceModal({ onComplete }: Props) {
         </select>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+      <div className="fp-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
         <input placeholder="Broker MC# (optional)" value={brokerMc} onChange={(e) => setBrokerMc(e.target.value)} style={inputStyle} />
         <input type="number" placeholder="Amount ($)" value={amount} onChange={(e) => setAmount(e.target.value ? Number(e.target.value) : "")} style={inputStyle} />
         <div>

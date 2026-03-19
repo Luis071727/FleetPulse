@@ -23,6 +23,14 @@ html, body {
   color: var(--white);
 }
 
+/* ── Global box-sizing & input reset ── */
+*, *::before, *::after { box-sizing: border-box; }
+
+input, select, textarea {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
 /* ── Font Utility Classes ── */
 .fp-mono { font-family: 'IBM Plex Mono', monospace; }
 .fp-serif { font-family: 'DM Serif Display', serif; }
@@ -97,11 +105,56 @@ html, body {
   .fp-sidebar--open { display: flex !important; position: fixed; left: 0; top: 0; bottom: 0; z-index: 200; }
   .fp-sidebar-backdrop--open { display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 199; }
   .fp-kpi-strip { grid-template-columns: repeat(2, 1fr); }
+  /* Top padding for hamburger button */
+  main { padding-top: 48px !important; }
 }
 
 @media (max-width: 480px) {
   .fp-kpi-strip { grid-template-columns: 1fr; }
-  .fp-table-wrap table { min-width: 600px; }
+  .fp-table-wrap { -webkit-overflow-scrolling: touch; }
+  .fp-table-wrap table { min-width: 700px; }
+}
+
+/* ── Mobile-responsive modals & forms ── */
+@media (max-width: 640px) {
+  /* Auth pages: stack brand + form vertically */
+  .fp-auth-page { flex-direction: column !important; }
+  .fp-auth-brand {
+    flex: none !important;
+    width: 100% !important;
+    padding: 24px 20px !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border);
+  }
+  .fp-auth-form-panel { padding: 24px 20px !important; }
+  .fp-auth-form { width: 100% !important; max-width: 100% !important; }
+
+  /* Modals: full-width on mobile */
+  .fp-modal {
+    width: calc(100vw - 32px) !important;
+    max-width: 100% !important;
+    max-height: 85vh !important;
+    margin: 16px;
+  }
+
+  /* Detail drawer: full screen on mobile */
+  .fp-drawer {
+    width: 100vw !important;
+    max-width: 100% !important;
+  }
+
+  /* All 2-col form grids become single column */
+  .fp-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Prevent input borders from collapsing */
+  .fp-form-grid input,
+  .fp-form-grid select,
+  .fp-form-grid textarea {
+    min-width: 0;
+    box-sizing: border-box;
+  }
 }
 
 /* ── Filter Chip (amber active state) ── */

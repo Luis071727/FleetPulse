@@ -41,9 +41,9 @@ export default function LoginPage() {
   if (!mounted) return null;
 
   return (
-    <div style={pageStyle}>
+    <div className="fp-auth-page" style={pageStyle}>
       {/* Left — branding panel */}
-      <div style={brandPanel}>
+      <div className="fp-auth-brand" style={brandPanel}>
         <div>
           <h1 style={{ fontSize: 32, fontWeight: 700, margin: 0, letterSpacing: "-0.02em" }}>
             <span style={{ color: "var(--amber)" }}>Fleet</span>Pulse
@@ -68,8 +68,8 @@ export default function LoginPage() {
       </div>
 
       {/* Right — login form */}
-      <div style={formPanel}>
-        <form onSubmit={handleSubmit} style={formCard}>
+      <div className="fp-auth-form-panel" style={formPanel}>
+        <form onSubmit={handleSubmit} className="fp-auth-form" style={formCard}>
           <h2 style={{ fontSize: 22, margin: "0 0 4px", fontWeight: 600 }}>Welcome back</h2>
           <p style={{ fontSize: 13, color: "var(--mist)", margin: "0 0 24px" }}>Sign in to your dispatcher account</p>
 

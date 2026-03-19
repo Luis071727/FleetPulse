@@ -143,7 +143,7 @@ export default function LogLoadModal({ carrierId: initialCarrierId, onComplete }
       {/* Route Details */}
       <fieldset style={fieldsetStyle}>
         <legend style={legendStyle}>Route Details</legend>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div className="fp-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <LabeledInput label="Origin" value={origin} onChange={setOrigin} placeholder="City, ST" />
           <LabeledInput label="Destination" value={destination} onChange={setDestination} placeholder="City, ST" />
           <LabeledInput label="Miles" value={miles} onChange={(v) => setMiles(v ? Number(v) : "")} type="number" placeholder="0" />
@@ -161,7 +161,7 @@ export default function LogLoadModal({ carrierId: initialCarrierId, onComplete }
       {/* Broker Info */}
       <fieldset style={fieldsetStyle}>
         <legend style={legendStyle}>Broker Info</legend>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div className="fp-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <LabeledInput label="Broker Name" value={brokerName} onChange={setBrokerName} placeholder="e.g. TQL, CH Robinson" />
           <LabeledInput label="Broker MC#" value={brokerMc} onChange={setBrokerMc} placeholder="MC number" />
           <LabeledInput label="Rate Confirmation #" value={rcReference} onChange={setRcReference} placeholder="RC# or PDF filename" />
@@ -172,7 +172,7 @@ export default function LogLoadModal({ carrierId: initialCarrierId, onComplete }
       {/* Financials */}
       <fieldset style={fieldsetStyle}>
         <legend style={legendStyle}>Financials</legend>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div className="fp-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <LabeledInput label="Gross Rate ($)" value={rate} onChange={(v) => setRate(v ? Number(v) : "")} type="number" placeholder="0" />
           <LabeledInput label="Driver Pay ($)" value={driverPay} onChange={(v) => setDriverPay(v ? Number(v) : "")} type="number" placeholder="0" />
           <LabeledInput label="Fuel Cost ($)" value={fuelCost} onChange={(v) => setFuelCost(v ? Number(v) : "")} type="number" placeholder="0" />
