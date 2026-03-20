@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { clearAuth, getUser } from "../../services/api";
-import { BarChart3, Truck, Package, DollarSign, Shield, Zap, Menu } from "../../components/icons";
+import { BarChart3, Truck, Package, DollarSign, Shield, Fuel, Zap, Menu } from "../../components/icons";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: <BarChart3 size={16} /> },
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { label: "Loads", href: "/loads", icon: <Package size={16} /> },
   { label: "Invoices", href: "/invoices", icon: <DollarSign size={16} /> },
   { label: "Insurance IQ", href: "/insurance", icon: <Shield size={16} /> },
+  { label: "IFTA", href: "/ifta", icon: <Fuel size={16} /> },
 ];
 
 export default function DispatcherLayout({ children }: { children: React.ReactNode }) {

@@ -173,3 +173,45 @@ export const CircleCheck = multiPath(
     <path d="m9 12 2 2 4-4" />
   </>
 );
+
+/** Lucide: fuel — IFTA fuel/gas pump icon */
+export const Fuel = multiPath(
+  <>
+    <line x1="3" x2="15" y1="22" y2="22" />
+    <line x1="4" x2="14" y1="9" y2="9" />
+    <path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18" />
+    <path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5" />
+  </>
+);
+
+/** Lucide: calendar — Deadline calendar icon */
+export const Calendar = multiPath(
+  <>
+    <path d="M8 2v4" />
+    <path d="M16 2v4" />
+    <rect width="18" height="18" x="3" y="4" rx="2" />
+    <path d="M3 10h18" />
+  </>
+);
+
+/** Lucide: map-pin — Location/state icon */
+export const MapPin = multiPath(
+  <>
+    <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
+    <circle cx="12" cy="10" r="3" />
+  </>
+);
+
+/** Lucide: file-text — Report/document icon */
+export const FileText = multiPath(
+  <>
+    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+    <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+    <path d="M10 9H8" />
+    <path d="M16 13H8" />
+    <path d="M16 17H8" />
+  </>
+);
+
+/** Lucide: bell — Notification/reminder icon */
+export const Bell = icon("M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0");

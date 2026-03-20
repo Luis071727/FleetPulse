@@ -1,0 +1,29 @@
+--**CLAUDE CURLS TESTS**--
+
+--FOLLOWUP_SYSTEM_PROMPT Test1
+curl https://api.anthropic.com/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: TOKEN" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{"model":"claude-sonnet-4-20250514","max_tokens":512,"messages":[{"role":"user","content":"You are a professional freight invoice collection assistant. Generate a follow-up email for an overdue invoice with the specified tone. Return JSON: {\"subject\": \"...\", \"body\": \"...\"}. Tones: polite (7-14d), firm (15-21d), assertive (22-29d), final (30+d). Include invoice number RC198912, amount 2400, and days outstanding 30 in the message. Be concise. Return ONLY valid JSON, no markdown fences."}]}'
+
+--Response: 
+{"model":"claude-sonnet-4-20250514","id":"msg_01CV4pk7tDGZjsXXCbyYVbJB","type":"message","role":"assistant","content":[{"type":"text","text":"{\"subject\": \"FINAL NOTICE: Overdue Invoice RC198912 - Immediate Payment Required\", \"body\": \"This is our final notice regarding invoice RC198912 for $2,400, which is now 30 days past due.\\n\\nImmediate payment is required to avoid escalation to our collections department and potential legal action. Your account will be placed on credit hold until this matter is resolved.\\n\\nIf payment has been sent, please provide proof immediately. Otherwise, we expect full payment within 48 hours.\\n\\nContact us immediately at [phone] if there are any disputes or payment arrangements needed.\"}"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":118,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":141,"service_tier":"standard","inference_geo":"not_available"}}
+
+
+--FOLLOWUP_SYSTEM_PROMPT Test2 ""less expensive""
+curl https://api.anthropic.com/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: TOKEN" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{"model":"claude-haiku-4-5-20251001","max_tokens":512,"messages":[{"role":"user","content":"You are a professional freight invoice collection assistant. Generate a follow-up email for an overdue invoice with the specified tone. Return JSON: {\"subject\": \"...\", \"body\": \"...\"}. Tones: polite (7-14d), firm (15-21d), assertive (22-29d), final (30+d). Include invoice number RC198912, amount 2400, and days outstanding 30 in the message. Be concise. Return ONLY valid JSON, no markdown fences."}]}'
+
+--Response: 
+{"model":"claude-haiku-4-5-20251001","id":"msg_01V9NawUyWxBQ5sUDzKvwdsE","type":"message","role":"assistant","content":[{"type":"text","text":"```json\n{\n  \"subject\": \"Final Notice: Payment Required for Invoice RC198912\",\n  \"body\": \"Dear Valued Customer,\\n\\nThis is a final notice regarding invoice RC198912 for $2,400.00, which is now 30 days overdue.\\n\\nDespite previous communications, we have not received payment. Immediate payment is required to avoid further action, including suspension of services and referral to our collections department.\\n\\nPlease remit payment within 48 hours. If payment has already been sent, please disregard this notice and contact us immediately.\\n\\nContact our accounting department at your earliest convenience to resolve this matter.\\n\\nRegards,\\nFreight Invoice Collection Team\"\n}\n```"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":118,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":171,"service_tier":"standard","inference_geo":"not_available"}}
+
+--COUNT_TOKENS
+curl https://api.anthropic.com/v1/messages/count_tokens \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: TOKEN" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"You are a professional freight invoice collection assistant. Generate a follow-up email for an overdue invoice with the specified tone. Return JSON: {\"subject\": \"...\", \"body\": \"...\"}. Tones: polite (7-14d), firm (15-21d), assertive (22-29d), final (30+d). Include invoice number RC198912, amount 2400, and days outstanding 30 in the message. Be concise. Return ONLY valid JSON, no markdown fences."}]}'
