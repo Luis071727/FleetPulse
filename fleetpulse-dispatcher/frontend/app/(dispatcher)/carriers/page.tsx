@@ -30,6 +30,10 @@ export default function CarrierRosterPage() {
   const [showLogLoad, setShowLogLoad] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteMsg, setInviteMsg] = useState("");
+  const [quickInviteCarrier, setQuickInviteCarrier] = useState<Carrier | null>(null);
+  const [quickInviteEmail, setQuickInviteEmail] = useState("");
+  const [quickInviteMsg, setQuickInviteMsg] = useState("");
+  const [quickInviteLoading, setQuickInviteLoading] = useState(false);
 
   useEffect(() => {
     setView(loadRosterViewPreference());
@@ -85,6 +89,42 @@ export default function CarrierRosterPage() {
       fetchCarriers();
     }
   };
+
+  const openQuickInvite = (carrier: Carrier) => {
+    setQuickInviteCarrier(carrier);
+    setQuickInviteEmail(String(carrier.contact_email || carrier.email || ""));
+    setQuickInviteMsg("");
+  };
+
+  const closeQuickInvite = () => {
+    setQuickInviteCarrier(null);
+    setQuickInviteEmail("");
+    setQuickInviteMsg("");
+    setQuickInviteLoading(false);
+  };
+
+  const handleQuickInvite = async () => {
+    if (!quickInviteCarrier?.id || !quickInviteEmail.trim()) return;
+    setQuickInviteLoading(true);
+    const res = await inviteCarrier(quickInviteCarrier.id as string, quickInviteEmail.trim());
+    if (res.error) {
+      setQuickInviteMsg(res.error);
+      setQuickInviteLoading(false);
+      return;
+    }
+
+    setQuickInviteMsg("Invite sent!");
+    setSelectedCarrier((prev) => (
+      prev?.id === quickInviteCarrier.id
+        ? { ...prev, portal_status: "invited" }
+        : prev
+    ));
+    await fetchCarriers();
+    setQuickInviteLoading(false);
+  };
+
+  const inviteActionLabel = (carrier: Carrier) =>
+    carrier.portal_status === "invited" ? "Resend Invite" : "Send Invite";
 
   const statusColor = (s: string) => {
     if (s === "active") return "var(--green)";
@@ -195,7 +235,18 @@ export default function CarrierRosterPage() {
                   <span style={{ color: c.portal_status === "active" ? "var(--green)" : "var(--mist)" }}>
                     {c.portal_status === "active" ? "Portal Active" : c.portal_status === "invited" ? "Invite Sent" : "Not Invited"}
                   </span>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedCarrier(c); }} style={btnSmall}>Details</button>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {c.portal_status !== "active" && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); openQuickInvite(c); }}
+                        style={{ ...btnSmall, color: "var(--amber)", borderColor: "var(--amber)" }}
+                      >
+                        {inviteActionLabel(c)}
+                      </button>
+                    )}
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedCarrier(c); }} style={btnSmall}>Details</button>
+                  </div>
                 </div>
               </div>
             );
@@ -242,14 +293,25 @@ export default function CarrierRosterPage() {
                       {(c.portal_status as string) || "not invited"}
                     </span>
                   </td>
-                  <td style={tdStyle}>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedCarrier(c); }} style={btnSmall}>
-                      Details
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
+                   <td style={tdStyle}>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {c.portal_status !== "active" && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); openQuickInvite(c); }}
+                          style={{ ...btnSmall, color: "var(--amber)", borderColor: "var(--amber)" }}
+                        >
+                          {inviteActionLabel(c)}
+                        </button>
+                      )}
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedCarrier(c); }} style={btnSmall}>
+                        Details
+                      </button>
+                    </div>
+                   </td>
+                 </tr>
+               );
+             })}
           </tbody>
         </table>
         </div>
@@ -295,7 +357,11 @@ export default function CarrierRosterPage() {
           {/* Action buttons */}
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 16 }}>
             {selectedCarrier.portal_status === "active" && <button type="button" style={btnOutline}>Preview Carrier Portal</button>}
-            {selectedCarrier.portal_status === "invited" && <button type="button" style={btnOutline}>Resend Invite</button>}
+            {selectedCarrier.portal_status === "invited" && (
+              <button type="button" onClick={() => openQuickInvite(selectedCarrier)} style={btnOutline}>
+                Resend Invite
+              </button>
+            )}
           </div>
         </div>
         </>
@@ -319,6 +385,49 @@ export default function CarrierRosterPage() {
             <button type="button" onClick={() => setShowLogLoad(false)}
               style={{ float: "right", background: "none", border: "none", color: "var(--mist)", cursor: "pointer", display: "flex", alignItems: "center" }}><X size={18} /></button>
             <LogLoadModal carrierId={selectedCarrier.id as string} onComplete={() => setShowLogLoad(false)} />
+          </div>
+        </div>
+      )}
+
+      {quickInviteCarrier && (
+        <div style={overlayStyle}>
+          <div className={modalClass} style={{ ...modalStyle, width: 420 }}>
+            <button
+              type="button"
+              onClick={closeQuickInvite}
+              style={{ float: "right", background: "none", border: "none", color: "var(--mist)", cursor: "pointer", display: "flex", alignItems: "center" }}
+            >
+              <X size={18} />
+            </button>
+            <h2 style={{ fontSize: 18, margin: "0 0 8px" }}>{inviteActionLabel(quickInviteCarrier)}</h2>
+            <p style={{ fontSize: 13, color: "var(--mist)", margin: "0 0 12px" }}>
+              Invite <strong style={{ color: "var(--white)" }}>{quickInviteCarrier.legal_name as string}</strong> to the carrier portal.
+            </p>
+            <label style={{ display: "block", fontSize: 12, color: "var(--mist)", marginBottom: 4 }}>
+              Invite email
+            </label>
+            <input
+              placeholder="carrier@email.com"
+              value={quickInviteEmail}
+              onChange={(e) => setQuickInviteEmail(e.target.value)}
+              style={inputStyle}
+            />
+            {quickInviteMsg && (
+              <p style={{ fontSize: 12, color: quickInviteMsg.toLowerCase().includes("error") ? "var(--red)" : "var(--green)", margin: "8px 0 0" }}>
+                {quickInviteMsg}
+              </p>
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+              <button type="button" onClick={closeQuickInvite} style={btnOutline}>Cancel</button>
+              <button
+                type="button"
+                onClick={handleQuickInvite}
+                disabled={!quickInviteEmail.trim() || quickInviteLoading}
+                style={{ ...btnPrimary, opacity: quickInviteEmail.trim() && !quickInviteLoading ? 1 : 0.6 }}
+              >
+                {quickInviteLoading ? "Sending…" : inviteActionLabel(quickInviteCarrier)}
+              </button>
+            </div>
           </div>
         </div>
       )}
