@@ -14,6 +14,7 @@ export default function AddInvoiceModal({ onComplete }: Props) {
   const [carrierSearch, setCarrierSearch] = useState("");
   const [carrierId, setCarrierId] = useState("");
   const [brokerMc, setBrokerMc] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
   const [amount, setAmount] = useState<number | "">("");
   const [issuedDate, setIssuedDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState("");
@@ -42,6 +43,7 @@ export default function AddInvoiceModal({ onComplete }: Props) {
         carrier_id: carrierId,
         broker_mc: brokerMc || undefined,
         amount: Number(amount),
+        invoice_number: invoiceNumber.trim() || undefined,
         issued_date: issuedDate || undefined,
         due_date: dueDate || undefined,
         notes: notes || undefined,
@@ -84,6 +86,7 @@ export default function AddInvoiceModal({ onComplete }: Props) {
 
       <div className="fp-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
         <input placeholder="Broker MC# (optional)" value={brokerMc} onChange={(e) => setBrokerMc(e.target.value)} style={inputStyle} />
+        <input placeholder="Invoice # (optional)" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} style={inputStyle} />
         <input type="number" placeholder="Amount ($)" value={amount} onChange={(e) => setAmount(e.target.value ? Number(e.target.value) : "")} style={inputStyle} />
         <div>
           <label style={labelStyle}>Issue Date</label>

@@ -25,7 +25,11 @@ export default function PortalLoadsPage() {
         setLoading(false);
       }
     };
-    fetchData();
+    void fetchData();
+    const intervalId = window.setInterval(() => {
+      void fetchData();
+    }, 60000);
+    return () => window.clearInterval(intervalId);
   }, []);
 
   if (loading) return <p style={{ color: "#94a3b8", padding: 16 }}>Loading...</p>;

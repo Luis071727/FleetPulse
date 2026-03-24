@@ -238,6 +238,7 @@ export async function createInvoice(data: {
   carrier_id: string;
   broker_mc?: string;
   amount: number;
+  invoice_number?: string;
   issued_date?: string;
   due_date?: string;
   load_id?: string;

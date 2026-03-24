@@ -13,10 +13,13 @@ def test_create_load_creates_invoice(client, auth_headers):
             "rate": 2400,
             "driver_pay": 800,
             "fuel_cost": 400,
+            "rc_reference": "RC-9001",
         },
         headers=auth_headers,
     )
     assert response.status_code == 201
+    body = response.json()
+    assert body["data"]["invoice"]["invoice_number"] == "RC-9001"
 
 
 def test_list_loads_contract(client, auth_headers):

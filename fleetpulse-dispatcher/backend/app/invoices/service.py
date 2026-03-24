@@ -35,7 +35,7 @@ class InvoiceFollowupService:
         invoice_id = invoice["id"]
         amount = float(invoice.get("amount", 0))
         days = invoice.get("days_outstanding", 0)
-        inv_number = invoice.get("invoice_number", invoice_id[:8])
+        inv_number = str(invoice.get("invoice_number") or "").strip() or invoice_id[:8]
         broker = broker_name or "the broker"
 
         tone = self.tone_for_days(days, override_tone)

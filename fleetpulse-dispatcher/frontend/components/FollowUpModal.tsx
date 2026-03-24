@@ -17,10 +17,14 @@ export default function FollowUpModal({ invoiceId, onSent }: Props) {
   const [tone, setTone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   const handleOpen = async () => {
     setOpen(true);
     setSent(false);
+    setCopied(false);
+    setCopyError(null);
     setError(null);
     setLoading(true);
     try {
@@ -43,6 +47,18 @@ export default function FollowUpModal({ invoiceId, onSent }: Props) {
   const handleMarkSent = () => {
     setSent(true);
     onSent?.();
+  };
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(`${subject}\n\n${body}`);
+      setCopied(true);
+      setCopyError(null);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+      setCopyError("Clipboard copy failed. Please copy the draft manually.");
+    }
   };
 
   const toneColor = tone === "final" ? "#ef4444" : tone === "assertive" ? "#f59e0b" : tone === "firm" ? "#fb923c" : "#22c55e";
@@ -103,9 +119,15 @@ export default function FollowUpModal({ invoiceId, onSent }: Props) {
                   ) : (
                     <span style={{ color: "#22c55e", fontSize: 13 }}>Marked as sent</span>
                   )}
-                  <button type="button" onClick={() => { navigator.clipboard.writeText(`${subject}\n\n${body}`); }}
-                    style={btnSecondary}>Copy to Clipboard</button>
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    style={copied ? { ...btnSecondary, color: "#22c55e", borderColor: "#22c55e" } : btnSecondary}
+                  >
+                    {copied ? "Copied!" : "Copy to Clipboard"}
+                  </button>
                 </div>
+                {copyError && <p style={{ color: "#ef4444", fontSize: 13, marginTop: 8 }}>{copyError}</p>}
               </>
             )}
           </div>

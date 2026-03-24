@@ -10,12 +10,25 @@ export default function PortalInvoicesPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const user = getUser();
-    const carrierId = user?.carrier_id as string | undefined;
-    listInvoices({ carrier_id: carrierId, limit: 50, sort_by: "days_outstanding", order: "desc" })
-      .then((res) => setInvoices((res.data as R[]) || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    const fetchInvoices = async () => {
+      const user = getUser();
+      const carrierId = user?.carrier_id as string | undefined;
+      try {
+        const res = await listInvoices({ carrier_id: carrierId, limit: 50, sort_by: "days_outstanding", order: "desc" });
+        setInvoices((res.data as R[]) || []);
+      } catch {
+        /* network error */
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void fetchInvoices();
+    const intervalId = window.setInterval(() => {
+      void fetchInvoices();
+    }, 60000);
+
+    return () => window.clearInterval(intervalId);
   }, []);
 
   if (loading) return <p style={{ color: "#94a3b8" }}>Loading invoices…</p>;

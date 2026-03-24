@@ -226,7 +226,7 @@ class AIService:
         broker_name: str | None = None,
     ) -> FollowupResult:
         settings = get_settings()
-        inv_number = invoice.get("invoice_number", invoice["id"][:8])
+        inv_number = str(invoice.get("invoice_number") or "").strip() or invoice["id"][:8]
         amount = float(invoice.get("amount", 0))
         days = invoice.get("days_outstanding", 0)
         broker = broker_name or "the broker"

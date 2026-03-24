@@ -136,3 +136,44 @@ def test_invoice_followup_tone_bucket_final(client, auth_headers, _mock_supabase
     )
     assert response.status_code == 200
     assert response.json()["data"]["tone"] == "final"
+
+
+def test_invoice_followup_includes_broker_invoice_number_and_days(client, auth_headers, _mock_supabase, org_id):
+    _mock_supabase._store.setdefault("loads", []).append({
+        "id": "load-followup",
+        "organization_id": org_id,
+        "carrier_id": "carrier-1",
+        "broker_id": "broker-1",
+        "broker_name": "Acme Brokerage",
+        "delivery_date": "2026-03-01",
+        "rc_reference": "RC-5555",
+        "deleted_at": None,
+    })
+    _mock_supabase._store.setdefault("brokers", []).append({
+        "id": "broker-1",
+        "organization_id": org_id,
+        "legal_name": "Acme Brokerage",
+    })
+    _mock_supabase._store.setdefault("invoices", []).append({
+        "id": "inv-context",
+        "load_id": "load-followup",
+        "carrier_id": "carrier-1",
+        "organization_id": org_id,
+        "amount": 1000,
+        "status": "pending",
+        "issued_date": "2026-03-01",
+        "followups_sent": 0,
+        "deleted_at": None,
+    })
+
+    response = client.post(
+        "/api/v1/ai/invoice/followup",
+        json={"invoice_id": "inv-context"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert "RC-5555" in data["subject_line"]
+    assert "Acme Brokerage" in data["draft_message"]
+    assert "days" in data["draft_message"]

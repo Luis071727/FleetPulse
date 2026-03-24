@@ -38,16 +38,84 @@ def _get_carriers_mem() -> list[dict]:
         return []
 
 
-def _enrich_invoices(invoices: list[dict], org_id: str) -> list[dict]:
-    """Add carrier_name and compute days_outstanding from the linked load's delivery date."""
+def _normalize_invoice_number(value: str | None, fallback: str) -> str:
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped:
+            return stripped
+    return fallback
+
+
+def _parse_date_value(value: str | None) -> date | None:
+    if not value:
+        return None
+    raw = str(value)
+    try:
+        return datetime.fromisoformat(raw).date() if "T" in raw else date.fromisoformat(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _compute_days_outstanding(invoice: dict, load: dict | None = None) -> int:
+    base_date = None
+    if load:
+        base_date = _parse_date_value(load.get("actual_delivery_at")) or _parse_date_value(load.get("delivery_date"))
+    if base_date is None:
+        base_date = _parse_date_value(invoice.get("issued_date"))
+    if base_date is None:
+        existing_days = invoice.get("days_outstanding")
+        if isinstance(existing_days, (int, float)):
+            return max(int(existing_days), 0)
+        return 0
+    return max((date.today() - base_date).days, 0)
+
+
+def _get_loads_lookup(org_id: str, sb=None) -> dict[str, dict]:
+    loads = {ld.get("id"): ld for ld in _get_loads_mem() if ld.get("organization_id") == org_id}
+    if sb is None:
+        return loads
+    try:
+        result = (
+            sb.table("loads")
+            .select("id, broker_name, customer_ap_email, actual_delivery_at, delivery_date, rc_reference")
+            .eq("organization_id", org_id)
+            .is_("deleted_at", "null")
+            .execute()
+        )
+        for load in result.data or []:
+            loads[load.get("id")] = load
+    except Exception:
+        logger.debug("DB load lookup failed, using in-memory loads only")
+    return loads
+
+
+def _get_carriers_lookup(org_id: str, sb=None) -> dict[str, dict]:
+    carriers = {c.get("id"): c for c in _get_carriers_mem() if c.get("organization_id") == org_id}
+    if sb is None:
+        return carriers
+    try:
+        result = (
+            sb.table("carriers")
+            .select("id, legal_name")
+            .eq("organization_id", org_id)
+            .is_("deleted_at", "null")
+            .execute()
+        )
+        for carrier in result.data or []:
+            carriers[carrier.get("id")] = carrier
+    except Exception:
+        logger.debug("DB carrier lookup failed, using in-memory carriers only")
+    return carriers
+
+
+def _enrich_invoices(invoices: list[dict], org_id: str, sb=None) -> list[dict]:
+    """Add carrier_name, invoice_number, and delivery-based days_outstanding."""
     if not invoices:
         return invoices
 
-    # Build lookup maps from in-memory stores
-    carriers = {c.get("id"): c for c in _get_carriers_mem() if c.get("organization_id") == org_id}
-    loads = {ld.get("id"): ld for ld in _get_loads_mem() if ld.get("organization_id") == org_id}
+    carriers = _get_carriers_lookup(org_id, sb=sb)
+    loads = _get_loads_lookup(org_id, sb=sb)
 
-    today = date.today()
     for inv in invoices:
         # Carrier name lookup
         carrier_id = inv.get("carrier_id")
@@ -56,10 +124,14 @@ def _enrich_invoices(invoices: list[dict], org_id: str) -> list[dict]:
         elif not inv.get("carrier_name"):
             inv["carrier_name"] = "—"
 
-        # Enrich from linked load: customer (broker_name), AP email, delivery-based days
         load_id = inv.get("load_id")
+        load = loads.get(load_id) if load_id else None
+        inv["invoice_number"] = _normalize_invoice_number(
+            inv.get("invoice_number") or (load.get("rc_reference") if load else None),
+            str(inv.get("id", ""))[:8],
+        )
+
         if load_id and load_id in loads:
-            load = loads[load_id]
             # Customer name = broker_name on the load
             if not inv.get("broker_name"):
                 inv["broker_name"] = load.get("broker_name") or "—"
@@ -67,30 +139,15 @@ def _enrich_invoices(invoices: list[dict], org_id: str) -> list[dict]:
             if not inv.get("customer_ap_email"):
                 inv["customer_ap_email"] = load.get("customer_ap_email") or ""
 
-        # Compute days_outstanding from delivery_date to today
         if inv.get("status") not in ("paid",):
-            load_id = inv.get("load_id")
-            if load_id and load_id in loads:
-                load = loads[load_id]
-                delivered_date_str = load.get("actual_delivery_at") or load.get("delivery_date")
-                if delivered_date_str:
-                    try:
-                        delivered = datetime.fromisoformat(str(delivered_date_str)).date() if "T" in str(delivered_date_str) else date.fromisoformat(str(delivered_date_str))
-                        inv["days_outstanding"] = max((today - delivered).days, 0)
-                    except (ValueError, TypeError):
-                        pass
-                else:
-                    # No delivery date — fall back to issued_date
-                    try:
-                        issued = date.fromisoformat(str(inv.get("issued_date", "")))
-                        inv["days_outstanding"] = max((today - issued).days, 0)
-                    except (ValueError, TypeError):
-                        pass
+            inv["days_outstanding"] = _compute_days_outstanding(inv, load)
 
             # Auto-flag overdue when days > 30
             days = inv.get("days_outstanding", 0)
             if isinstance(days, (int, float)) and days > 30 and inv.get("status") in ("pending", "sent"):
                 inv["status"] = "overdue"
+        else:
+            inv["days_outstanding"] = 0
 
     return invoices
 
@@ -104,6 +161,7 @@ class InvoiceStatusUpdate(BaseModel):
     notes: str | None = None
     issued_date: str | None = None
     due_date: str | None = None
+    invoice_number: str | None = None
 
 
 class CreateInvoiceIn(BaseModel):
@@ -114,6 +172,7 @@ class CreateInvoiceIn(BaseModel):
     due_date: str | None = None
     load_id: str | None = None
     notes: str | None = None
+    invoice_number: str | None = None
 
 
 @router.post("", status_code=201)
@@ -125,6 +184,9 @@ def create_invoice(
 
     org_id = user.organization_id
     now_iso = datetime.now(timezone.utc).isoformat()
+    sb = get_supabase()
+
+    linked_load = _get_loads_lookup(org_id, sb=sb).get(payload.load_id) if payload.load_id else None
 
     # Look up broker if MC provided
     broker_id = None
@@ -147,6 +209,10 @@ def create_invoice(
         pass
 
     inv_id = str(uuid4())
+    invoice_number = _normalize_invoice_number(
+        payload.invoice_number or (linked_load.get("rc_reference") if linked_load else None),
+        inv_id[:8],
+    )
     invoice_row = {
         "id": inv_id,
         "organization_id": org_id,
@@ -157,6 +223,7 @@ def create_invoice(
         "amount": payload.amount,
         "status": "pending",
         "followups_sent": 0,
+        "invoice_number": invoice_number,
         "issued_date": payload.issued_date or str(date.today()),
         "due_date": payload.due_date or str(date.today()),
         "notes": payload.notes,
@@ -164,7 +231,6 @@ def create_invoice(
     }
 
     try:
-        sb = get_supabase()
         result = safe_execute(sb.table("invoices").insert(invoice_row), fallback=[invoice_row])
         invoice = result.data[0] if result.data else invoice_row
     except Exception:
@@ -215,7 +281,7 @@ def list_invoices(
         )
 
         # Enrich with carrier_name and compute days_outstanding
-        data = _enrich_invoices(data, user.organization_id)
+        data = _enrich_invoices(data, user.organization_id, sb=sb)
 
         return ok(data, total=total, total_outstanding=total_outstanding, limit=limit, offset=offset)
     except Exception:
@@ -251,14 +317,14 @@ def get_invoice(
         )
         if not result or not result.data:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
-        return ok(result.data)
+        return ok(_enrich_invoices([result.data], user.organization_id, sb=sb)[0])
     except HTTPException:
         raise
     except Exception:
         inv = next((iv for iv in _get_invoices_mem() if iv.get("id") == invoice_id and iv.get("organization_id") == user.organization_id), None)
         if not inv:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
-        return ok(inv)
+        return ok(_enrich_invoices([inv], user.organization_id)[0])
 
 
 @router.patch("/{invoice_id}")
@@ -287,6 +353,8 @@ def update_invoice(
         updates["issued_date"] = payload.issued_date
     if payload.due_date is not None:
         updates["due_date"] = payload.due_date
+    if payload.invoice_number is not None:
+        updates["invoice_number"] = _normalize_invoice_number(payload.invoice_number, invoice_id[:8])
 
     if not updates:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")

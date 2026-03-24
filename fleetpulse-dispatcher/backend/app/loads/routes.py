@@ -141,6 +141,7 @@ def create_load(
         pass
 
     inv_id = str(uuid4())
+    invoice_number = payload.rc_reference.strip() if payload.rc_reference and payload.rc_reference.strip() else inv_id[:8]
     invoice_row = {
         "id": inv_id,
         "organization_id": org_id,
@@ -151,6 +152,7 @@ def create_load(
         "amount": payload.rate,
         "status": "pending",
         "followups_sent": 0,
+        "invoice_number": invoice_number,
         "issued_date": str(date.today()),
         "due_date": str(date.today()),
         "customer_ap_email": payload.customer_ap_email,

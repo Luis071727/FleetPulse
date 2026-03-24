@@ -1,3 +1,6 @@
+ALTER TABLE invoices DROP COLUMN IF EXISTS days_outstanding;
+DROP INDEX IF EXISTS idx_invoices_days_outstanding;
+
 CREATE OR REPLACE FUNCTION invoice_on_load_insert()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -17,9 +20,3 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
-DROP TRIGGER IF EXISTS trg_invoice_on_load_insert ON loads;
-CREATE TRIGGER trg_invoice_on_load_insert
-AFTER INSERT ON loads
-FOR EACH ROW
-EXECUTE FUNCTION invoice_on_load_insert();

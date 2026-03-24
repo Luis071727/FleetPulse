@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from app.ai.service import AIService
 from app.common.schemas import ResponseEnvelope, ok
 from app.config import get_supabase, safe_execute
+from app.invoices.routes import _enrich_invoices
 from app.invoices.service import InvoiceFollowupService
 from app.middleware.auth import CurrentUser, require_dispatcher
 
@@ -168,16 +169,18 @@ def invoice_followup(
     )
     if not result or not result.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
-    invoice = result.data
+    invoice = _enrich_invoices([result.data], user.organization_id, sb=sb)[0]
 
     days = invoice.get("days_outstanding", 0)
     tone = _followup_service.tone_for_days(days, payload.override_tone)
 
     # Look up broker name if load has broker_id
-    broker_name = None
+    broker_name = invoice.get("broker_name") or None
     if invoice.get("load_id"):
-        load_res = sb.table("loads").select("broker_id").eq("id", invoice["load_id"]).maybe_single().execute()
-        if load_res and load_res.data and load_res.data.get("broker_id"):
+        load_res = sb.table("loads").select("broker_id, broker_name").eq("id", invoice["load_id"]).maybe_single().execute()
+        if load_res and load_res.data and load_res.data.get("broker_name") and not broker_name:
+            broker_name = load_res.data.get("broker_name")
+        if load_res and load_res.data and load_res.data.get("broker_id") and not broker_name:
             broker_res = (
                 sb.table("brokers")
                 .select("legal_name")

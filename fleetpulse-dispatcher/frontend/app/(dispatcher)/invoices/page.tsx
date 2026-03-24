@@ -21,8 +21,8 @@ export default function InvoicePage() {
   const [showAddInvoice, setShowAddInvoice] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
 
-  const fetchInvoices = useCallback(async () => {
-    setLoading(true);
+  const fetchInvoices = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const res = await listInvoices({
         sort_by: sortBy,
@@ -35,12 +35,19 @@ export default function InvoicePage() {
     } catch {
       /* network error */
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, [sortBy, statusFilter]);
 
   useEffect(() => {
-    fetchInvoices();
+    void fetchInvoices();
+  }, [fetchInvoices]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void fetchInvoices(false);
+    }, 60000);
+    return () => window.clearInterval(intervalId);
   }, [fetchInvoices]);
 
   useEffect(() => {
@@ -197,6 +204,7 @@ function EditInvoiceModal({ invoice, carriers, onClose, onSaved }: {
   onClose: () => void; onSaved: () => void;
 }) {
   const [amount, setAmount] = useState(String(invoice.amount || ""));
+  const [invoiceNumber, setInvoiceNumber] = useState((invoice.invoice_number as string) || "");
   const [carrierId, setCarrierId] = useState((invoice.carrier_id as string) || "");
   const [customerApEmail, setCustomerApEmail] = useState((invoice.customer_ap_email as string) || "");
   const [notes, setNotes] = useState((invoice.notes as string) || "");
@@ -212,6 +220,7 @@ function EditInvoiceModal({ invoice, carriers, onClose, onSaved }: {
       const updates: Record<string, unknown> = {};
       const numAmount = Number(amount);
       if (!isNaN(numAmount) && numAmount !== Number(invoice.amount)) updates.amount = numAmount;
+      if (invoiceNumber !== (invoice.invoice_number || "")) updates.invoice_number = invoiceNumber;
       if (carrierId && carrierId !== invoice.carrier_id) updates.carrier_id = carrierId;
       if (customerApEmail !== (invoice.customer_ap_email || "")) updates.customer_ap_email = customerApEmail;
       if (notes !== (invoice.notes || "")) updates.notes = notes;
@@ -241,6 +250,10 @@ function EditInvoiceModal({ invoice, carriers, onClose, onSaved }: {
         </div>
 
         <div className="fp-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+          <div>
+            <label style={lblStyle}>Invoice #</label>
+            <input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} style={inpStyle} />
+          </div>
           <div>
             <label style={lblStyle}>Carrier</label>
             <select value={carrierId} onChange={(e) => setCarrierId(e.target.value)} style={inpStyle}>
