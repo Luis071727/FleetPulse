@@ -91,6 +91,8 @@ def invite_carrier(
         "expires_in_hours": 24,
         "carrier_id": invite["carrier_id"],
         "invite_token": invite["token"],
+        "magic_link_sent": invite.get("supabase_invite_sent", False),
+        "redirect_to": invite.get("redirect_to"),
     })
 
 

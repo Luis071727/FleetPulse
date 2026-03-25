@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     fmcsa_timeout: int = 30
     ai_monthly_budget: float = 30.0
     cors_origins: str = "http://localhost:3000,http://localhost:3001"
+    carrier_portal_url: str = "http://localhost:3000"
 
 
 settings = Settings()

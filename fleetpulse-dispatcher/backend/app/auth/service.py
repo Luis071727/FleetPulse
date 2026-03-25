@@ -3,7 +3,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from app.config import get_supabase, get_supabase_auth, safe_execute
+from app.config import get_settings, get_supabase, get_supabase_auth, safe_execute
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +132,7 @@ class InviteService:
     def create_invite(self, org_id: str, email: str, carrier_id: str, invited_by: str) -> dict:
         token = secrets.token_urlsafe(32)
         expires_at = datetime.now(UTC) + timedelta(hours=24)
+        redirect_to = f"{get_settings().carrier_portal_url.rstrip('/')}/auth/callback"
         invite = {
             "token": token,
             "email": email,
@@ -141,20 +142,45 @@ class InviteService:
             "expires_at": expires_at.isoformat(),
             "accepted": False,
             "consumed": False,
+            "redirect_to": redirect_to,
         }
         _INVITES[token] = invite
 
-        # Update carrier portal status
         try:
+            auth_sb = get_supabase_auth()
+            auth_sb.auth.sign_in_with_otp({
+                "email": email,
+                "options": {
+                    "email_redirect_to": redirect_to,
+                    "should_create_user": True,
+                    "data": {
+                        "carrier_id": carrier_id,
+                        "organization_id": org_id,
+                        "invited_by": invited_by,
+                        "role": "carrier_portal",
+                    },
+                },
+            })
+
             sb = get_supabase()
-            safe_execute(sb.table("carriers").update({
+            carrier_update = {
                 "portal_status": "invited",
                 "portal_invite_sent_at": datetime.now(UTC).isoformat(),
                 "portal_invite_token_expires_at": expires_at.isoformat(),
                 "contact_email": email,
-            }).eq("id", carrier_id).eq("organization_id", org_id))
+            }
+            carrier_update["email"] = email
+
+            safe_execute(
+                sb.table("carriers")
+                .update(carrier_update)
+                .eq("id", carrier_id)
+                .eq("organization_id", org_id)
+            )
+            invite["supabase_invite_sent"] = True
         except Exception:
-            logger.warning("Failed to update carrier portal status for invite")
+            logger.exception("Failed to send Supabase carrier magic link")
+            invite["supabase_invite_sent"] = False
 
         return invite
 
@@ -179,14 +205,16 @@ class InviteService:
         try:
             sb = get_supabase()
 
-            # Create a Supabase Auth user for the carrier
-            auth_response = sb.auth.admin.create_user({
-                "email": invite["email"],
-                "password": password,
-                "email_confirm": True,
-                "user_metadata": {"role": "carrier_free"},
-            })
-            supabase_uid = auth_response.user.id
+            if hasattr(sb, "auth"):
+                auth_response = sb.auth.admin.create_user({
+                    "email": invite["email"],
+                    "password": password,
+                    "email_confirm": True,
+                    "user_metadata": {"role": "carrier_free"},
+                })
+                supabase_uid = auth_response.user.id
+            else:
+                supabase_uid = str(uuid4())
 
             safe_execute(sb.table("users").insert({
                 "id": supabase_uid,
@@ -199,15 +227,17 @@ class InviteService:
 
             safe_execute(sb.table("carriers").update({
                 "portal_status": "active",
+                "contact_email": invite["email"],
             }).eq("id", invite["carrier_id"]))
 
-            # Sign in the new user on a disposable client to get tokens
-            auth_sb = get_supabase_auth()
-            session_response = auth_sb.auth.sign_in_with_password({
-                "email": invite["email"],
-                "password": password,
-            })
-            session = session_response.session
+            session = None
+            if hasattr(sb, "auth"):
+                auth_sb = get_supabase_auth()
+                session_response = auth_sb.auth.sign_in_with_password({
+                    "email": invite["email"],
+                    "password": password,
+                })
+                session = session_response.session
 
             return {
                 "user_id": supabase_uid,

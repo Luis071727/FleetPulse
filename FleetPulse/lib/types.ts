@@ -201,7 +201,12 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      link_current_user_to_carrier: {
+        Args: Record<string, never>;
+        Returns: string | null;
+      };
+    };
     Enums: Record<string, never>;
   };
 }
