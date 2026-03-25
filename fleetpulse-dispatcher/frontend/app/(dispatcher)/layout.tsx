@@ -72,7 +72,7 @@ export default function DispatcherLayout({ children }: { children: React.ReactNo
         type="button"
         className="fp-hamburger"
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        style={{ position: "fixed", top: 12, left: 12, zIndex: 210, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", color: "var(--white)", fontSize: 18, cursor: "pointer", lineHeight: 1 }}
+        style={{ position: "fixed", top: 12, right: 12, zIndex: 210, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", color: "var(--white)", fontSize: 18, cursor: "pointer", lineHeight: 1 }}
       >
         <Menu size={18} />
       </button>

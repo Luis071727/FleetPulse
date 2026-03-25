@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { listCarriers, listLoads, listInvoices } from "../../../services/api";
 
 type R = Record<string, unknown>;
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [carriers, setCarriers] = useState<R[]>([]);
   const [loads, setLoads] = useState<R[]>([]);
   const [invoices, setInvoices] = useState<R[]>([]);
@@ -31,6 +33,21 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const formatDate = (value: unknown) => {
+    if (typeof value !== "string" || !value) return "—";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString();
+  };
+
+  const getLaneLabel = (load: R) => {
+    const route = (load.route as string) || "";
+    if (route.trim()) return route;
+    const origin = (load.origin as string) || "—";
+    const destination = (load.destination as string) || "—";
+    return `${origin} → ${destination}`;
+  };
 
   // Derived KPIs
   const activeCarriers = carriers.filter((c) => (c.status as string) === "active" || (c.computed_status as string) === "active").length;
@@ -93,7 +110,11 @@ export default function DashboardPage() {
             </thead>
             <tbody>
               {carriers.slice(0, 8).map((c) => (
-                <tr key={c.id as string} style={{ borderBottom: "1px solid #0f172a" }}>
+                <tr
+                  key={c.id as string}
+                  onClick={() => router.push(`/carriers?carrierId=${encodeURIComponent(c.id as string)}`)}
+                  style={{ borderBottom: "1px solid #0f172a", cursor: "pointer" }}
+                >
                   <td style={tdStyle}>
                     <div>
                       <span style={{ fontWeight: 500 }}>{c.legal_name as string}</span>
@@ -131,10 +152,15 @@ export default function DashboardPage() {
               <p style={{ color: "#64748b", fontSize: 13 }}>No loads yet</p>
             ) : (
               loads.slice(0, 5).map((l) => (
-                <div key={l.id as string} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #0f172a", fontSize: 13 }}>
-                  <div>
-                    <span style={{ color: "#f8fafc" }}>{(l.route as string) || "—"}</span>
-                    <span style={{ color: "#64748b", marginLeft: 8 }}>${Number(l.load_rate || 0).toLocaleString()}</span>
+                <div key={l.id as string} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #0f172a", fontSize: 13, gap: 12 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ color: "#f8fafc", fontWeight: 500 }}>{getLaneLabel(l)}</span>
+                      <span style={{ color: "#64748b" }}>${Number(l.load_rate || 0).toLocaleString()}</span>
+                    </div>
+                    <div style={{ color: "#94a3b8", fontSize: 11, marginTop: 4 }}>
+                      Pickup: {formatDate(l.pickup_date)} • Delivery: {formatDate(l.delivery_date)}
+                    </div>
                   </div>
                   <StatusBadge status={(l.status as string) || "logged"} />
                 </div>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  getCarrier,
   listCarriers,
   inviteCarrier,
   loadRosterViewPreference,
@@ -73,6 +74,33 @@ export default function CarrierRosterPage() {
   useEffect(() => {
     fetchCarriers();
   }, [fetchCarriers]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const carrierId = new URLSearchParams(window.location.search).get("carrierId");
+    if (!carrierId) return;
+
+    const existing = carriers.find((carrier) => carrier.id === carrierId);
+    if (existing) {
+      setSelectedCarrier(existing);
+      return;
+    }
+
+    getCarrier(carrierId).then((res) => {
+      if (res.data) {
+        setSelectedCarrier(res.data as Carrier);
+      }
+    }).catch(() => {});
+  }, [carriers]);
+
+  const clearCarrierQuery = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    params.delete("carrierId");
+    const next = params.toString();
+    const target = next ? `/carriers?${next}` : "/carriers";
+    window.history.replaceState(null, "", target);
+  }, []);
 
   const handleViewToggle = (v: RosterView) => {
     setView(v);
@@ -320,11 +348,11 @@ export default function CarrierRosterPage() {
       {/* Detail Drawer */}
       {selectedCarrier && (
         <>
-        <div onClick={() => { setSelectedCarrier(null); setInviteMsg(""); }}
+        <div onClick={() => { setSelectedCarrier(null); setInviteMsg(""); clearCarrierQuery(); }}
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 49 }} />
         <div className="fp-drawer" style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: 400, background: "var(--surface)",
           borderLeft: "1px solid var(--border)", padding: 20, overflowY: "auto", zIndex: 50 }}>
-          <button type="button" onClick={() => { setSelectedCarrier(null); setInviteMsg(""); }}
+          <button type="button" onClick={() => { setSelectedCarrier(null); setInviteMsg(""); clearCarrierQuery(); }}
             style={{ float: "right", background: "none", border: "none", color: "var(--mist)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center" }}>
             <X size={18} />
           </button>

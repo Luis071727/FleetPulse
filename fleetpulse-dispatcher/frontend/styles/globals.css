@@ -106,7 +106,7 @@ input, select, textarea {
   .fp-sidebar-backdrop--open { display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 199; }
   .fp-kpi-strip { grid-template-columns: repeat(2, 1fr); }
   /* Top padding for hamburger button */
-  main { padding-top: 48px !important; }
+  main { padding-top: 60px !important; }
 }
 
 @media (max-width: 480px) {
