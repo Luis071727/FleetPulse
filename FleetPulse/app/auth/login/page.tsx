@@ -60,19 +60,19 @@ export default function LoginPage() {
               onChange={(event) => setEmail(event.target.value)}
               placeholder="dispatch@example.com"
               required
-              className="mt-2 w-full rounded-xl border border-brand-border px-4 py-3 outline-none transition focus:border-brand-amber"
+              className="mt-2 w-full rounded-xl border border-brand-border bg-brand-ink px-4 py-3 outline-none transition focus:border-brand-amber"
             />
           </label>
           <button
             type="submit"
             disabled={loading || !email}
-            className="w-full rounded-xl bg-brand-amber px-4 py-3 font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-xl bg-brand-amber px-4 py-3 font-semibold text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? "Sending..." : "Send me a link"}
           </button>
         </form>
 
-        {message && <p className="mt-4 text-sm text-emerald-700">{message}</p>}
+        {message && <p className="mt-4 text-sm text-emerald-300">{message}</p>}
         {error && <p className="mt-4 text-sm text-brand-danger">{error}</p>}
 
         <p className="mt-6 text-sm text-brand-slate-light">

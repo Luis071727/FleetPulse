@@ -7,6 +7,7 @@ import { createServerSupabaseClient, hasSupabaseEnv } from "@/lib/supabase-serve
 export const metadata: Metadata = {
   title: "FleetPulse Carrier Portal",
   description: "Carrier self-service portal for loads, docs, and dispatcher communication.",
+  themeColor: "#080c10",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -26,14 +27,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap"
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
           rel="stylesheet"
         />
       </head>
       <body>
         <div className="min-h-screen bg-brand-canvas">
           <NavBar userEmail={userEmail} />
-          <main className="mx-auto min-h-[calc(100vh-96px)] max-w-4xl px-4 py-6 sm:px-6">{children}</main>
+          <main className="mx-auto min-h-[calc(100vh-104px)] max-w-5xl px-4 py-6 sm:px-6">{children}</main>
         </div>
       </body>
     </html>

@@ -21,7 +21,7 @@ export default function DocRequestItem({
   const label = request.label || request.doc_type;
 
   return (
-    <div className="rounded-card border border-brand-border bg-white p-4">
+    <div className="card p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-brand-slate">{label}</p>
@@ -43,7 +43,7 @@ export default function DocRequestItem({
             onSuccess={onRefresh}
           />
         ) : (
-          <p className="text-sm text-emerald-700">Document already received.</p>
+          <p className="text-sm text-emerald-300">Document already received.</p>
         )}
       </div>
     </div>

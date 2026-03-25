@@ -1,9 +1,11 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 html,
@@ -12,11 +14,17 @@ body {
 }
 
 body {
-  @apply bg-brand-canvas text-brand-ink font-sans antialiased;
+  @apply bg-brand-canvas text-brand-slate font-sans antialiased;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 a {
-  @apply text-brand-amber transition-colors hover:text-orange-700;
+  @apply text-brand-amber transition-colors hover:text-amber-300;
 }
 
 button,
@@ -26,10 +34,30 @@ select {
   font: inherit;
 }
 
+input,
+textarea,
+select {
+  @apply bg-brand-surface text-brand-slate placeholder:text-brand-slate-light;
+}
+
 .card {
   @apply rounded-card border border-brand-border bg-brand-white shadow-soft;
 }
 
 .section-title {
   @apply text-lg font-semibold text-brand-slate;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #080c10;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e2d3d;
+  border-radius: 9999px;
 }

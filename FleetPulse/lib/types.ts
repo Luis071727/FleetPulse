@@ -1,5 +1,5 @@
 export type CarrierStatus = "pending" | "active" | "inactive";
-export type LoadStatus = "pending" | "in_transit" | "delivered" | "cancelled";
+export type LoadStatus = "pending" | "logged" | "in_transit" | "delivered" | "cancelled";
 export type DocumentRequestStatus = "pending" | "uploaded" | "approved" | "rejected";
 export type DocumentRequestType = "BOL" | "POD" | "RATE_CON" | "INVOICE" | "OTHER";
 export type ComplianceDocumentType = "INSURANCE" | "CDL" | "REGISTRATION" | "INSPECTION" | "OTHER";

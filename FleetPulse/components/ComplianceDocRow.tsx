@@ -18,7 +18,7 @@ export default function ComplianceDocRow({ doc, carrierId, currentUserId, effect
   return (
     <div className="card flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-start gap-3">
-        <div className="rounded-xl bg-orange-100 p-2 text-brand-amber">
+        <div className="rounded-xl border border-brand-border bg-brand-amber-light p-2 text-brand-amber">
           <FileBadge2 size={18} />
         </div>
         <div>

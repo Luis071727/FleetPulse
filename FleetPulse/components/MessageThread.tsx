@@ -70,7 +70,7 @@ export default function MessageThread({ currentUserId, loadId, initialMessages }
   };
 
   return (
-    <div className="rounded-card border border-brand-border bg-white">
+    <div className="card">
       <div className="max-h-[360px] space-y-3 overflow-y-auto p-4">
         {messages.length === 0 ? (
           <p className="text-sm text-brand-slate-light">No messages yet. Ask your dispatcher anything about this load.</p>
@@ -81,11 +81,11 @@ export default function MessageThread({ currentUserId, loadId, initialMessages }
               <div key={message.id} className={`flex ${ownMessage ? "justify-end" : "justify-start"}`}>
                 <div
                   className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
-                    ownMessage ? "bg-brand-amber text-white" : "bg-slate-100 text-brand-slate"
+                    ownMessage ? "bg-brand-amber text-black" : "border border-brand-border bg-brand-ink text-brand-slate"
                   }`}
                 >
                   <p className="whitespace-pre-wrap">{message.body}</p>
-                  <p className={`mt-2 text-[11px] ${ownMessage ? "text-orange-100" : "text-brand-slate-light"}`}>
+                  <p className={`mt-2 text-[11px] ${ownMessage ? "text-black/70" : "text-brand-slate-light"}`}>
                     {message.created_at ? new Date(message.created_at).toLocaleString() : "Just now"}
                   </p>
                 </div>
@@ -101,14 +101,14 @@ export default function MessageThread({ currentUserId, loadId, initialMessages }
             value={body}
             onChange={(event) => setBody(event.target.value)}
             rows={2}
-            className="min-h-[76px] flex-1 rounded-xl border border-brand-border px-4 py-3 text-sm outline-none ring-0 focus:border-brand-amber"
+            className="min-h-[76px] flex-1 rounded-xl border border-brand-border bg-brand-ink px-4 py-3 text-sm text-brand-slate outline-none ring-0 focus:border-brand-amber"
             placeholder="Type a note to your dispatcher..."
           />
           <button
             type="button"
             onClick={handleSend}
             disabled={sending || !body.trim()}
-            className="inline-flex h-11 items-center justify-center rounded-xl bg-brand-amber px-4 text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-11 items-center justify-center rounded-xl bg-brand-amber px-4 text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <SendHorizontal size={16} />
           </button>

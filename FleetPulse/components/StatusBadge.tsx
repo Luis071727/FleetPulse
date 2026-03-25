@@ -4,16 +4,17 @@ import { cn } from "@/lib/cn";
 type BadgeStatus = LoadStatus | DocumentRequestStatus | ComplianceStatus;
 
 const styles: Record<BadgeStatus, string> = {
-  pending: "bg-brand-amber-light text-orange-700",
-  in_transit: "bg-blue-100 text-blue-700",
-  delivered: "bg-emerald-100 text-emerald-700",
-  cancelled: "bg-rose-100 text-rose-700",
-  uploaded: "bg-emerald-100 text-emerald-700",
-  approved: "bg-emerald-100 text-emerald-700",
-  rejected: "bg-rose-100 text-rose-700",
-  active: "bg-emerald-100 text-emerald-700",
-  expired: "bg-rose-100 text-rose-700",
-  expiring_soon: "bg-orange-100 text-orange-700"
+  pending: "border border-amber-700/40 bg-brand-amber-light text-brand-amber",
+  logged: "border border-sky-700/40 bg-sky-950/50 text-sky-300",
+  in_transit: "border border-sky-700/40 bg-sky-950/50 text-sky-300",
+  delivered: "border border-emerald-700/40 bg-emerald-950/40 text-emerald-300",
+  cancelled: "border border-rose-700/40 bg-rose-950/40 text-rose-300",
+  uploaded: "border border-sky-700/40 bg-sky-950/50 text-sky-300",
+  approved: "border border-emerald-700/40 bg-emerald-950/40 text-emerald-300",
+  rejected: "border border-rose-700/40 bg-rose-950/40 text-rose-300",
+  active: "border border-emerald-700/40 bg-emerald-950/40 text-emerald-300",
+  expired: "border border-rose-700/40 bg-rose-950/40 text-rose-300",
+  expiring_soon: "border border-amber-700/40 bg-brand-amber-light text-brand-amber"
 };
 
 export default function StatusBadge({ status, className }: { status: BadgeStatus; className?: string }) {
