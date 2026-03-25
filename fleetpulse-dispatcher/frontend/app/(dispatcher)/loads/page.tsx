@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { listLoads, listCarriers, analyzeLoad, updateLoad, deleteLoad, getLoad } from "../../../services/api";
+import { listLoads, listCarriers, analyzeLoad, updateLoad, deleteLoad, getLoad, listDocumentRequests, createDocumentRequest, updateDocumentRequest, deleteDocumentRequest, listMessages, sendMessage } from "../../../services/api";
 import { X } from "../../../components/icons";
 import LogLoadModal from "../../../components/LogLoadModal";
 
@@ -294,6 +294,44 @@ function EditLoadModal({ load, carriers, onClose, onSaved }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Document Requests state
+  const [docRequests, setDocRequests] = useState<R[]>([]);
+  const [docRequestsLoading, setDocRequestsLoading] = useState(true);
+  const [newDocType, setNewDocType] = useState("BOL");
+  const [newDocNotes, setNewDocNotes] = useState("");
+  const [docRequestSaving, setDocRequestSaving] = useState(false);
+
+  // Messages state
+  const [messages, setMessages] = useState<R[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(true);
+  const [messageBody, setMessageBody] = useState("");
+  const [messageSending, setMessageSending] = useState(false);
+
+  const loadId = load.id as string;
+
+  const fetchDocRequests = useCallback(async () => {
+    setDocRequestsLoading(true);
+    try {
+      const res = await listDocumentRequests(loadId);
+      setDocRequests((res.data as R[]) || []);
+    } catch { /* */ }
+    finally { setDocRequestsLoading(false); }
+  }, [loadId]);
+
+  const fetchMessages = useCallback(async () => {
+    setMessagesLoading(true);
+    try {
+      const res = await listMessages(loadId);
+      setMessages((res.data as R[]) || []);
+    } catch { /* */ }
+    finally { setMessagesLoading(false); }
+  }, [loadId]);
+
+  useEffect(() => {
+    fetchDocRequests();
+    fetchMessages();
+  }, [fetchDocRequests, fetchMessages]);
+
   const numRate = Number(rate) || 0;
   const numDriverPay = Number(driverPay) || 0;
   const numFuelCost = Number(fuelCost) || 0;
@@ -326,6 +364,49 @@ function EditLoadModal({ load, carriers, onClose, onSaved }: {
     finally { setSaving(false); }
   };
 
+  const handleCreateDocRequest = async () => {
+    setDocRequestSaving(true);
+    try {
+      await createDocumentRequest(loadId, { doc_type: newDocType, notes: newDocNotes || undefined });
+      setNewDocNotes("");
+      await fetchDocRequests();
+    } catch { /* */ }
+    finally { setDocRequestSaving(false); }
+  };
+
+  const handleUpdateDocRequest = async (requestId: string, newStatus: string) => {
+    try {
+      await updateDocumentRequest(loadId, requestId, { status: newStatus });
+      await fetchDocRequests();
+    } catch { /* */ }
+  };
+
+  const handleDeleteDocRequest = async (requestId: string) => {
+    if (!confirm("Delete this document request?")) return;
+    try {
+      await deleteDocumentRequest(loadId, requestId);
+      await fetchDocRequests();
+    } catch { /* */ }
+  };
+
+  const handleSendMessage = async () => {
+    if (!messageBody.trim()) return;
+    setMessageSending(true);
+    try {
+      await sendMessage(loadId, messageBody.trim());
+      setMessageBody("");
+      await fetchMessages();
+    } catch { /* */ }
+    finally { setMessageSending(false); }
+  };
+
+  const docStatusColor = (s: string) => {
+    if (s === "approved") return "#22c55e";
+    if (s === "uploaded") return "#60a5fa";
+    if (s === "rejected") return "#ef4444";
+    return "#f59e0b"; // pending
+  };
+
   const inputStyle: React.CSSProperties = {
     padding: "8px 12px", borderRadius: 6, border: "1px solid #334155",
     background: "#0f172a", color: "#f8fafc", fontSize: 14, width: "100%",
@@ -337,7 +418,7 @@ function EditLoadModal({ load, carriers, onClose, onSaved }: {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100 }}
       onClick={onClose}>
-      <div className="fp-modal" style={{ background: "#0f172a", borderRadius: 12, padding: 24, width: 520, maxHeight: "80vh", overflowY: "auto", border: "1px solid #1e293b" }}
+      <div className="fp-modal" style={{ background: "#0f172a", borderRadius: 12, padding: 24, width: 640, maxHeight: "88vh", overflowY: "auto", border: "1px solid #1e293b" }}
         onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Edit Load</h2>
@@ -371,11 +452,130 @@ function EditLoadModal({ load, carriers, onClose, onSaved }: {
         </div>
 
         {error && <p style={{ color: "#ef4444", fontSize: 13 }}>{error}</p>}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginBottom: 20 }}>
           <button type="button" onClick={onClose} style={{ padding: "8px 16px", borderRadius: 6, border: "1px solid #334155", background: "transparent", color: "#94a3b8", fontSize: 14, cursor: "pointer" }}>Cancel</button>
           <button type="button" onClick={handleSave} disabled={saving} style={{ ...btnAdd, opacity: saving ? 0.6 : 1 }}>
             {saving ? "Saving…" : "Save Changes"}
           </button>
+        </div>
+
+        {/* ── Document Requests ── */}
+        <div style={{ borderTop: "1px solid #1e293b", paddingTop: 16, marginBottom: 20 }}>
+          <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600, color: "#f8fafc" }}>Document Requests</h3>
+
+          {/* Create form */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "flex-end" }}>
+            <div style={{ flex: "0 0 140px" }}>
+              <label style={labelStyle}>Doc Type</label>
+              <select value={newDocType} onChange={e => setNewDocType(e.target.value)}
+                style={{ ...inputStyle, padding: "7px 10px" }}>
+                {["BOL", "POD", "RATE_CON", "INVOICE", "OTHER"].map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Notes (optional)</label>
+              <input value={newDocNotes} onChange={e => setNewDocNotes(e.target.value)}
+                style={inputStyle} placeholder="e.g. Signed BOL required" />
+            </div>
+            <button type="button" onClick={handleCreateDocRequest} disabled={docRequestSaving}
+              style={{ padding: "8px 14px", borderRadius: 6, border: "none", background: "#f59e0b", color: "#000", fontSize: 13, cursor: "pointer", fontWeight: 600, opacity: docRequestSaving ? 0.6 : 1, whiteSpace: "nowrap" }}>
+              {docRequestSaving ? "…" : "Request Document"}
+            </button>
+          </div>
+
+          {/* List */}
+          {docRequestsLoading ? (
+            <p style={{ fontSize: 13, color: "#64748b" }}>Loading…</p>
+          ) : docRequests.length === 0 ? (
+            <p style={{ fontSize: 13, color: "#64748b" }}>No document requests yet.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {docRequests.map((dr) => {
+                const st = dr.status as string;
+                return (
+                  <div key={dr.id as string} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, background: "#0f172a", border: "1px solid #1e293b" }}>
+                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 700, background: "#334155", color: "#f8fafc", whiteSpace: "nowrap" }}>
+                      {dr.doc_type as string}
+                    </span>
+                    <span style={{ flex: 1, fontSize: 13, color: "#94a3b8" }}>{(dr.notes as string) || "—"}</span>
+                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 600, background: `${docStatusColor(st)}22`, color: docStatusColor(st), textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                      {st}
+                    </span>
+                    {st !== "approved" && st !== "rejected" && (
+                      <>
+                        <button type="button" onClick={() => handleUpdateDocRequest(dr.id as string, "approved")}
+                          style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid #22c55e44", background: "transparent", color: "#22c55e", fontSize: 11, cursor: "pointer" }}>
+                          Approve
+                        </button>
+                        <button type="button" onClick={() => handleUpdateDocRequest(dr.id as string, "rejected")}
+                          style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid #ef444444", background: "transparent", color: "#ef4444", fontSize: 11, cursor: "pointer" }}>
+                          Reject
+                        </button>
+                      </>
+                    )}
+                    <button type="button" onClick={() => handleDeleteDocRequest(dr.id as string)}
+                      style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid #33415544", background: "transparent", color: "#64748b", fontSize: 11, cursor: "pointer" }}>
+                      Delete
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ── Load Messages ── */}
+        <div style={{ borderTop: "1px solid #1e293b", paddingTop: 16 }}>
+          <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600, color: "#f8fafc" }}>Messages</h3>
+
+          {/* Message thread */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12, maxHeight: 260, overflowY: "auto" }}>
+            {messagesLoading ? (
+              <p style={{ fontSize: 13, color: "#64748b" }}>Loading…</p>
+            ) : messages.length === 0 ? (
+              <p style={{ fontSize: 13, color: "#64748b" }}>No messages yet.</p>
+            ) : (
+              messages.map((msg) => {
+                const isDispatcher = (msg.role as string) === "dispatcher";
+                return (
+                  <div key={msg.id as string} style={{ display: "flex", flexDirection: "column", alignItems: isDispatcher ? "flex-end" : "flex-start" }}>
+                    <div style={{
+                      maxWidth: "75%", padding: "8px 12px", borderRadius: 10,
+                      background: isDispatcher ? "#78350f" : "#1e293b",
+                      border: `1px solid ${isDispatcher ? "#f59e0b44" : "#334155"}`,
+                    }}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+                        <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 8, fontWeight: 600, background: isDispatcher ? "#f59e0b33" : "#33415566", color: isDispatcher ? "#f59e0b" : "#94a3b8", textTransform: "uppercase" }}>
+                          {msg.role as string}
+                        </span>
+                        <span style={{ fontSize: 11, color: "#64748b" }}>
+                          {msg.created_at ? new Date(msg.created_at as string).toLocaleString() : ""}
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 13, color: "#f8fafc" }}>{msg.body as string}</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Send input */}
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              value={messageBody}
+              onChange={e => setMessageBody(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+              style={{ ...inputStyle, flex: 1 }}
+              placeholder="Type a message…"
+            />
+            <button type="button" onClick={handleSendMessage} disabled={messageSending || !messageBody.trim()}
+              style={{ padding: "8px 16px", borderRadius: 6, border: "none", background: "#f59e0b", color: "#000", fontSize: 13, cursor: "pointer", fontWeight: 600, opacity: messageSending || !messageBody.trim() ? 0.6 : 1 }}>
+              {messageSending ? "…" : "Send"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

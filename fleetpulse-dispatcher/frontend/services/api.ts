@@ -321,3 +321,51 @@ export async function submitFeedback(data: {
     body: JSON.stringify(data),
   });
 }
+
+// ── Document Requests ──
+
+export async function listDocumentRequests(loadId: string) {
+  return apiFetch(`/loads/${encodeURIComponent(loadId)}/document-requests`);
+}
+
+export async function createDocumentRequest(loadId: string, data: { doc_type: string; notes?: string }) {
+  return apiFetch(`/loads/${encodeURIComponent(loadId)}/document-requests`, {
+    method: "POST", body: JSON.stringify(data),
+  });
+}
+
+export async function updateDocumentRequest(loadId: string, requestId: string, data: { status: string }) {
+  return apiFetch(`/loads/${encodeURIComponent(loadId)}/document-requests/${encodeURIComponent(requestId)}`, {
+    method: "PATCH", body: JSON.stringify(data),
+  });
+}
+
+export async function deleteDocumentRequest(loadId: string, requestId: string) {
+  return apiFetch(`/loads/${encodeURIComponent(loadId)}/document-requests/${encodeURIComponent(requestId)}`, {
+    method: "DELETE",
+  });
+}
+
+// ── Messages ──
+
+export async function listMessages(loadId: string) {
+  return apiFetch(`/loads/${encodeURIComponent(loadId)}/messages`);
+}
+
+export async function sendMessage(loadId: string, body: string) {
+  return apiFetch(`/loads/${encodeURIComponent(loadId)}/messages`, {
+    method: "POST", body: JSON.stringify({ body }),
+  });
+}
+
+// ── Compliance Documents ──
+
+export async function listComplianceDocs(carrierId: string) {
+  return apiFetch(`/carriers/${encodeURIComponent(carrierId)}/compliance-documents`);
+}
+
+// ── Pending Actions ──
+
+export async function listPendingActions(carrierId: string) {
+  return apiFetch(`/carriers/${encodeURIComponent(carrierId)}/pending-actions`);
+}

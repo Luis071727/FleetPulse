@@ -7,6 +7,8 @@ import {
   inviteCarrier,
   loadRosterViewPreference,
   saveRosterViewPreference,
+  listComplianceDocs,
+  listPendingActions,
   type RosterView,
 } from "../../../services/api";
 import AddCarrierModal from "../../../components/AddCarrierModal";
@@ -36,9 +38,36 @@ export default function CarrierRosterPage() {
   const [quickInviteMsg, setQuickInviteMsg] = useState("");
   const [quickInviteLoading, setQuickInviteLoading] = useState(false);
 
+  // Compliance docs and pending actions for selected carrier
+  const [complianceDocs, setComplianceDocs] = useState<Carrier[]>([]);
+  const [complianceDocsLoading, setComplianceDocsLoading] = useState(false);
+  const [pendingActions, setPendingActions] = useState<Carrier[]>([]);
+  const [pendingActionsLoading, setPendingActionsLoading] = useState(false);
+
   useEffect(() => {
     setView(loadRosterViewPreference());
   }, []);
+
+  // Load compliance docs and pending actions when a carrier is selected
+  useEffect(() => {
+    if (!selectedCarrier?.id) {
+      setComplianceDocs([]);
+      setPendingActions([]);
+      return;
+    }
+    const carrierId = selectedCarrier.id as string;
+    setComplianceDocsLoading(true);
+    listComplianceDocs(carrierId)
+      .then((res) => setComplianceDocs((res.data as Carrier[]) || []))
+      .catch(() => setComplianceDocs([]))
+      .finally(() => setComplianceDocsLoading(false));
+
+    setPendingActionsLoading(true);
+    listPendingActions(carrierId)
+      .then((res) => setPendingActions((res.data as Carrier[]) || []))
+      .catch(() => setPendingActions([]))
+      .finally(() => setPendingActionsLoading(false));
+  }, [selectedCarrier?.id]);
 
   // Escape key to close detail drawer
   useEffect(() => {
@@ -389,6 +418,73 @@ export default function CarrierRosterPage() {
               <button type="button" onClick={() => openQuickInvite(selectedCarrier)} style={btnOutline}>
                 Resend Invite
               </button>
+            )}
+          </div>
+
+          {/* ── Compliance Documents ── */}
+          <div style={{ marginTop: 20, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 10px", color: "var(--white)" }}>Compliance Documents</p>
+            {complianceDocsLoading ? (
+              <p style={{ fontSize: 12, color: "var(--mist)" }}>Loading…</p>
+            ) : complianceDocs.length === 0 ? (
+              <p style={{ fontSize: 12, color: "var(--mist)" }}>No compliance documents on file.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {complianceDocs.map((doc) => {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  let effectiveStatus = (doc.status as string) || "pending";
+                  if (doc.expires_at) {
+                    const exp = new Date(doc.expires_at as string);
+                    const daysUntil = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                    if (daysUntil < 0) effectiveStatus = "expired";
+                    else if (daysUntil <= 30) effectiveStatus = "expiring_soon";
+                    else effectiveStatus = "active";
+                  }
+                  const statusCol = effectiveStatus === "active" ? "var(--green)" : effectiveStatus === "expiring_soon" ? "var(--amber)" : effectiveStatus === "expired" ? "var(--red)" : "var(--mist)";
+                  return (
+                    <div key={doc.id as string} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 6, background: "var(--border)", border: "1px solid var(--border)" }}>
+                      <span style={{ flex: 1, fontSize: 13, color: "var(--white)" }}>{(doc.doc_type as string) || "—"}</span>
+                      <span style={{ fontSize: 12, color: "var(--mist)" }}>
+                        {doc.expires_at ? new Date(doc.expires_at as string).toLocaleDateString() : "—"}
+                      </span>
+                      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, fontWeight: 600, background: `${statusCol}22`, color: statusCol, textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                        {effectiveStatus.replace("_", " ")}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ── Pending Actions ── */}
+          <div style={{ marginTop: 20, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 10px", color: "var(--white)" }}>Pending Actions</p>
+            {pendingActionsLoading ? (
+              <p style={{ fontSize: 12, color: "var(--mist)" }}>Loading…</p>
+            ) : pendingActions.length === 0 ? (
+              <p style={{ fontSize: 12, color: "var(--mist)" }}>No pending actions.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {pendingActions.map((ld) => (
+                  <div
+                    key={ld.id as string}
+                    onClick={() => { setSelectedCarrier(null); window.location.href = `/loads?loadId=${ld.id as string}`; }}
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 6, background: "var(--border)", border: "1px solid var(--border)", cursor: "pointer" }}
+                  >
+                    <span style={{ flex: 1, fontSize: 13, color: "var(--white)" }}>
+                      {(ld.origin as string) || "—"} → {(ld.destination as string) || "—"}
+                    </span>
+                    {ld.rc_reference && (
+                      <span style={{ fontSize: 11, color: "var(--mist)" }}>RC# {ld.rc_reference as string}</span>
+                    )}
+                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 700, background: "#ef444422", color: "var(--red)", whiteSpace: "nowrap" }}>
+                      {String(ld.pending_requests_count || 0)} pending
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>

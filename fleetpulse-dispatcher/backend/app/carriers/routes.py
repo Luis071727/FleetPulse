@@ -1,10 +1,15 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
 from app.carriers.service import CarrierService
 from app.common.schemas import ResponseEnvelope, ok
+from app.config import get_supabase
 from app.fmcsa.cache import FmcsaCacheService
 from app.middleware.auth import CurrentUser, require_dispatcher, require_authenticated
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/carriers", tags=["carriers"])
@@ -171,3 +176,71 @@ def update_carrier(
     if not carrier:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Carrier not found")
     return ok(carrier)
+
+
+# ── Compliance Documents ──
+
+@router.get("/{carrier_id}/compliance-documents")
+def list_compliance_documents(
+    carrier_id: str,
+    user: CurrentUser = Depends(require_authenticated),
+) -> ResponseEnvelope:
+    carrier = service.get_carrier(user.organization_id, carrier_id)
+    if not carrier:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Carrier not found")
+    if user.role != "dispatcher_admin" and user.carrier_id != carrier_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Carrier access denied")
+    try:
+        sb = get_supabase()
+        result = (
+            sb.table("compliance_documents")
+            .select("*")
+            .eq("carrier_id", carrier_id)
+            .order("expires_at", desc=False)
+            .execute()
+        )
+        return ok(result.data or [])
+    except Exception:
+        return ok([])
+
+
+# ── Pending Actions ──
+
+@router.get("/{carrier_id}/pending-actions")
+def list_pending_actions(
+    carrier_id: str,
+    user: CurrentUser = Depends(require_dispatcher),
+) -> ResponseEnvelope:
+    try:
+        sb = get_supabase()
+        loads_result = (
+            sb.table("loads")
+            .select("*")
+            .eq("carrier_id", carrier_id)
+            .eq("organization_id", user.organization_id)
+            .neq("status", "delivered")
+            .is_("deleted_at", "null")
+            .execute()
+        )
+        loads = loads_result.data or []
+
+        enriched = []
+        for load in loads:
+            try:
+                dr_result = (
+                    sb.table("document_requests")
+                    .select("id", count="exact")
+                    .eq("load_id", load["id"])
+                    .eq("status", "pending")
+                    .execute()
+                )
+                count = dr_result.count if dr_result.count is not None else len(dr_result.data or [])
+                if count > 0:
+                    enriched.append({**load, "pending_requests_count": count})
+            except Exception:
+                pass
+
+        return ok(enriched)
+    except Exception:
+        logger.debug("list_pending_actions failed for carrier %s", carrier_id)
+        return ok([])

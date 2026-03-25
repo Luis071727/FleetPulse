@@ -319,3 +319,185 @@ def delete_load(
             ld["deleted_at"] = now_iso
             return ok({"deleted": True})
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Load not found")
+
+
+# ── Document Requests ──
+
+VALID_DOC_TYPES = {"BOL", "POD", "RATE_CON", "INVOICE", "OTHER"}
+VALID_DOC_REQUEST_STATUSES = {"approved", "rejected"}
+
+
+class CreateDocRequestIn(BaseModel):
+    doc_type: str
+    notes: str | None = None
+
+
+class UpdateDocRequestIn(BaseModel):
+    status: str
+
+
+def _get_load_scope(load_id: str, user: CurrentUser) -> dict:
+    sb = get_supabase()
+    query = (
+        sb.table("loads")
+        .select("id, carrier_id, organization_id")
+        .eq("id", load_id)
+        .eq("organization_id", user.organization_id)
+        .is_("deleted_at", "null")
+    )
+    if user.role != "dispatcher_admin" and user.carrier_id:
+        query = query.eq("carrier_id", user.carrier_id)
+
+    result = query.maybe_single().execute()
+    if not result or not result.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Load not found")
+    return result.data
+
+
+def _serialize_document_request(row: dict) -> dict:
+    return {
+        **row,
+        "notes": row.get("label"),
+    }
+
+
+def _serialize_message(row: dict) -> dict:
+    return {
+        **row,
+        "role": row.get("sender_role"),
+    }
+
+
+@router.get("/{load_id}/document-requests")
+def list_document_requests(
+    load_id: str,
+    user: CurrentUser = Depends(require_authenticated),
+) -> ResponseEnvelope:
+    try:
+        _get_load_scope(load_id, user)
+        sb = get_supabase()
+        result = (
+            sb.table("document_requests")
+            .select("*")
+            .eq("load_id", load_id)
+            .order("created_at", desc=False)
+            .execute()
+        )
+        return ok([_serialize_document_request(row) for row in (result.data or [])])
+    except Exception:
+        return ok([])
+
+
+@router.post("/{load_id}/document-requests", status_code=201)
+def create_document_request(
+    load_id: str,
+    payload: CreateDocRequestIn,
+    user: CurrentUser = Depends(require_dispatcher),
+) -> ResponseEnvelope:
+    if payload.doc_type not in VALID_DOC_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid doc_type. Must be one of: {', '.join(sorted(VALID_DOC_TYPES))}",
+        )
+    load_row = _get_load_scope(load_id, user)
+    sb = get_supabase()
+    row = {
+        "id": str(uuid4()),
+        "load_id": load_id,
+        "doc_type": payload.doc_type,
+        "label": payload.notes,
+        "status": "pending",
+        "carrier_id": load_row.get("carrier_id"),
+    }
+    result = safe_execute(sb.table("document_requests").insert(row), fallback=[row])
+    payload_row = result.data[0] if result.data else row
+    return ok(_serialize_document_request(payload_row))
+
+
+@router.patch("/{load_id}/document-requests/{request_id}")
+def update_document_request(
+    load_id: str,
+    request_id: str,
+    payload: UpdateDocRequestIn,
+    user: CurrentUser = Depends(require_dispatcher),
+) -> ResponseEnvelope:
+    if payload.status not in VALID_DOC_REQUEST_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid status. Must be one of: {', '.join(sorted(VALID_DOC_REQUEST_STATUSES))}",
+        )
+    _get_load_scope(load_id, user)
+    sb = get_supabase()
+    try:
+        result = safe_execute(
+            sb.table("document_requests")
+            .update({"status": payload.status})
+            .eq("id", request_id)
+            .eq("load_id", load_id)
+        )
+        if result.data:
+            return ok(_serialize_document_request(result.data[0]))
+    except Exception:
+        pass
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document request not found")
+
+
+@router.delete("/{load_id}/document-requests/{request_id}", status_code=200)
+def delete_document_request(
+    load_id: str,
+    request_id: str,
+    user: CurrentUser = Depends(require_dispatcher),
+) -> ResponseEnvelope:
+    _get_load_scope(load_id, user)
+    sb = get_supabase()
+    try:
+        sb.table("document_requests").delete().eq("id", request_id).eq("load_id", load_id).execute()
+    except Exception:
+        pass
+    return ok({"deleted": True})
+
+
+# ── Messages ──
+
+class CreateMessageIn(BaseModel):
+    body: str
+
+
+@router.get("/{load_id}/messages")
+def list_messages(
+    load_id: str,
+    user: CurrentUser = Depends(require_authenticated),
+) -> ResponseEnvelope:
+    try:
+        _get_load_scope(load_id, user)
+        sb = get_supabase()
+        result = (
+            sb.table("messages")
+            .select("*")
+            .eq("load_id", load_id)
+            .order("created_at", desc=False)
+            .execute()
+        )
+        return ok([_serialize_message(row) for row in (result.data or [])])
+    except Exception:
+        return ok([])
+
+
+@router.post("/{load_id}/messages", status_code=201)
+def create_message(
+    load_id: str,
+    payload: CreateMessageIn,
+    user: CurrentUser = Depends(require_dispatcher),
+) -> ResponseEnvelope:
+    _get_load_scope(load_id, user)
+    sb = get_supabase()
+    row = {
+        "id": str(uuid4()),
+        "load_id": load_id,
+        "sender_id": user.user_id,
+        "sender_role": "dispatcher",
+        "body": payload.body,
+    }
+    result = safe_execute(sb.table("messages").insert(row), fallback=[row])
+    payload_row = result.data[0] if result.data else row
+    return ok(_serialize_message(payload_row))
