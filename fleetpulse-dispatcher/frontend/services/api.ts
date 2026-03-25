@@ -191,6 +191,10 @@ export async function listLoads(params?: {
   return apiFetch("/loads", { params: params as Record<string, string | number | undefined> });
 }
 
+export async function getLoad(id: string) {
+  return apiFetch(`/loads/${encodeURIComponent(id)}`);
+}
+
 export async function createLoad(data: {
   carrier_id: string;
   broker_mc: string;

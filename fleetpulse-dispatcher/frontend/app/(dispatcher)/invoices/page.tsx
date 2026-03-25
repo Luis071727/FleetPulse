@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { listInvoices, listCarriers, markInvoicePaid, draftFollowup, updateInvoice } from "../../../services/api";
+import { listInvoices, listCarriers, markInvoicePaid, draftFollowup, updateInvoice, getInvoice } from "../../../services/api";
 import InvoiceRow from "../../../components/InvoiceRow";
 import { AlertTriangle, X } from "../../../components/icons";
 import AddInvoiceModal from "../../../components/AddInvoiceModal";
@@ -42,6 +42,30 @@ export default function InvoicePage() {
   useEffect(() => {
     void fetchInvoices();
   }, [fetchInvoices]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const invoiceId = new URLSearchParams(window.location.search).get("invoiceId");
+    if (!invoiceId) return;
+
+    const existing = invoices.find((invoice) => invoice.id === invoiceId);
+    if (existing) {
+      setEditingInvoice(existing);
+      return;
+    }
+
+    getInvoice(invoiceId).then((res) => {
+      if (res.data) setEditingInvoice(res.data as Invoice);
+    }).catch(() => {});
+  }, [invoices]);
+
+  const clearInvoiceQuery = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    params.delete("invoiceId");
+    const next = params.toString();
+    window.history.replaceState(null, "", next ? `/invoices?${next}` : "/invoices");
+  }, []);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -189,8 +213,8 @@ export default function InvoicePage() {
         <EditInvoiceModal
           invoice={editingInvoice}
           carriers={carriers}
-          onClose={() => setEditingInvoice(null)}
-          onSaved={() => { setEditingInvoice(null); fetchInvoices(); }}
+          onClose={() => { setEditingInvoice(null); clearInvoiceQuery(); }}
+          onSaved={() => { setEditingInvoice(null); clearInvoiceQuery(); fetchInvoices(); }}
         />
       )}
     </div>

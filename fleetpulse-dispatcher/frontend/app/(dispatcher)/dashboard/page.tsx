@@ -152,7 +152,12 @@ export default function DashboardPage() {
               <p style={{ color: "#64748b", fontSize: 13 }}>No loads yet</p>
             ) : (
               loads.slice(0, 5).map((l) => (
-                <div key={l.id as string} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #0f172a", fontSize: 13, gap: 12 }}>
+                <button
+                  key={l.id as string}
+                  type="button"
+                  onClick={() => router.push(`/loads?loadId=${encodeURIComponent(l.id as string)}`)}
+                  style={{ ...dashboardListButtonStyle, display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #0f172a", fontSize: 13, gap: 12 }}
+                >
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span style={{ color: "#f8fafc", fontWeight: 500 }}>{getLaneLabel(l)}</span>
@@ -163,7 +168,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <StatusBadge status={(l.status as string) || "logged"} />
-                </div>
+                </button>
               ))
             )}
           </section>
@@ -181,13 +186,18 @@ export default function DashboardPage() {
                 const days = Number(inv.days_outstanding || 0);
                 const daysColor = days >= 22 ? "#ef4444" : days >= 8 ? "#f59e0b" : "#22c55e";
                 return (
-                  <div key={inv.id as string} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #0f172a", fontSize: 13 }}>
+                  <button
+                    key={inv.id as string}
+                    type="button"
+                    onClick={() => router.push(`/invoices?invoiceId=${encodeURIComponent(inv.id as string)}`)}
+                    style={{ ...dashboardListButtonStyle, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #0f172a", fontSize: 13 }}
+                  >
                     <span style={{ color: "#f8fafc" }}>INV-{(inv.id as string)?.slice(0, 6)}</span>
                     <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                       <span style={{ color: daysColor, fontWeight: 600 }}>{days}d</span>
                       <span style={{ color: "#94a3b8" }}>${Number(inv.amount || 0).toLocaleString()}</span>
                     </div>
-                  </div>
+                  </button>
                 );
               })
             )}
@@ -226,6 +236,13 @@ function StatusBadge({ status }: { status: string }) {
 
 const sectionStyle: React.CSSProperties = {
   background: "var(--surface)", borderRadius: 10, padding: 16, border: "1px solid var(--border)",
+};
+const dashboardListButtonStyle: React.CSSProperties = {
+  width: "100%",
+  background: "transparent",
+  border: "none",
+  cursor: "pointer",
+  textAlign: "left",
 };
 const sectionTitle: React.CSSProperties = { fontSize: 15, margin: 0, fontWeight: 600 };
 const viewAllLink: React.CSSProperties = { fontSize: 12, color: "var(--blue)", textDecoration: "none" };

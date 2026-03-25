@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { listLoads, listCarriers, analyzeLoad, updateLoad, deleteLoad } from "../../../services/api";
+import { listLoads, listCarriers, analyzeLoad, updateLoad, deleteLoad, getLoad } from "../../../services/api";
 import { X } from "../../../components/icons";
 import LogLoadModal from "../../../components/LogLoadModal";
 
@@ -36,6 +36,30 @@ export default function LoadsPage() {
   }, [statusFilter, carrierFilter]);
 
   useEffect(() => { fetchLoads(); }, [fetchLoads]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const loadId = new URLSearchParams(window.location.search).get("loadId");
+    if (!loadId) return;
+
+    const existing = loads.find((load) => load.id === loadId);
+    if (existing) {
+      setEditingLoad(existing);
+      return;
+    }
+
+    getLoad(loadId).then((res) => {
+      if (res.data) setEditingLoad(res.data as R);
+    }).catch(() => {});
+  }, [loads]);
+
+  const clearLoadQuery = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    params.delete("loadId");
+    const next = params.toString();
+    window.history.replaceState(null, "", next ? `/loads?${next}` : "/loads");
+  }, []);
 
   useEffect(() => {
     listCarriers({ limit: 200 }).then((res) => {
@@ -234,8 +258,8 @@ export default function LoadsPage() {
         <EditLoadModal
           load={editingLoad}
           carriers={carriers}
-          onClose={() => setEditingLoad(null)}
-          onSaved={() => { setEditingLoad(null); fetchLoads(); }}
+          onClose={() => { setEditingLoad(null); clearLoadQuery(); }}
+          onSaved={() => { setEditingLoad(null); clearLoadQuery(); fetchLoads(); }}
         />
       )}
     </div>
