@@ -34,10 +34,14 @@ class PaperworkService:
             "recipient_email": recipient_email,
             "status": "pending",
         }
-        result = safe_execute(sb.table("invoice_document_requests").insert(row), fallback=[row])
-        record = result.data[0] if result.data else row
+        try:
+            result = sb.table("invoice_document_requests").insert(row).execute()
+            record = result.data[0] if result.data else row
+        except Exception as exc:
+            logger.error("Failed to persist paperwork request to DB: %s", exc)
+            raise RuntimeError(f"Could not save paperwork request: {exc}") from exc
 
-        dispatcher_url = getattr(settings, "dispatcher_url", "http://localhost:3001")
+        dispatcher_url = getattr(settings, "dispatcher_url", "http://localhost:3001").rstrip("/")
         record["magic_link"] = f"{dispatcher_url}/upload/{record.get('token', token)}"
         return record
 
