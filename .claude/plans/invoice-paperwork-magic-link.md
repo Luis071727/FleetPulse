@@ -1,5 +1,5 @@
 # Plan: Invoice Paperwork Magic Link
-Status: READY
+Status: DONE
 Branch: claude/add-claude-documentation-aOq5O
 Created: 2026-03-29
 
@@ -18,12 +18,12 @@ in the invoice detail in real time.
 - **Invoice detail UX**: Replace the flat `EditInvoiceModal` with a tabbed `InvoiceDetailModal` — tabs: Details (existing edit form) | Documents (uploaded files + request button)
 
 ## Phase Index
-- [ ] P1 — DB: Migration — invoice_document_requests + invoice_documents tables
-- [ ] P2 — Backend: `paperwork` module — 4 endpoints (request, validate token, upload file, list docs)
-- [ ] P3 — Backend: Wire router into main.py + add 4 functions to api.ts
-- [ ] P4 — Frontend: Public upload page `/upload/[token]` (driver-facing, no auth)
-- [ ] P5 — Frontend: `PaperworkRequestModal` component (dispatcher creates request, copies link)
-- [ ] P6 — Frontend: `InvoiceDetailModal` — tabbed detail view with Documents tab + request button
+- [x] P1 — DB: Migration — invoice_document_requests + invoice_documents tables
+- [x] P2 — Backend: `paperwork` module — 4 endpoints (request, validate token, upload file, list docs)
+- [x] P3 — Backend: Wire router into main.py + add 4 functions to api.ts
+- [x] P4 — Frontend: Public upload page `/upload/[token]` (driver-facing, no auth)
+- [x] P5 — Frontend: `PaperworkRequestModal` component (dispatcher creates request, copies link)
+- [x] P6 — Frontend: `InvoiceDetailModal` — tabbed detail view with Documents tab + request button
 
 ---
 

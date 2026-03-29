@@ -295,6 +295,40 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 ---
 
+---
+
+### PAPERWORK / DOCUMENT UPLOAD (Invoice Magic Link)
+
+| Layer | File | Notes |
+|-------|------|-------|
+| DB tables | `invoice_document_requests`, `invoice_documents` | Migration: `20260329_invoice_paperwork.sql` |
+| Backend service | `backend/app/paperwork/service.py` | `PaperworkService` — create_request, get_request_by_token, upload_file, list_documents |
+| Backend routes | `backend/app/paperwork/routes.py` | 4 endpoints (see below) |
+| Router registration | `backend/app/main.py` | `paperwork_router` included in api_v1 |
+| API calls | `services/api.ts` (bottom of file) | `requestPaperwork`, `validateUploadToken`, `uploadInvoiceFile`, `listInvoiceDocuments` |
+| Public upload page | `fleetpulse-dispatcher/frontend/app/(public)/upload/[token]/page.tsx` | Driver-facing, no auth required |
+| Public layout | `fleetpulse-dispatcher/frontend/app/(public)/layout.tsx` | Bare layout, no nav |
+| Request modal | `components/PaperworkRequestModal.tsx` | Dispatcher creates request + copies link |
+| Detail modal | `components/InvoiceDetailModal.tsx` | Tabbed: Details + Documents — replaces EditInvoiceModal |
+| Invoices page | `app/(dispatcher)/invoices/page.tsx` | Uses InvoiceDetailModal (replaces EditInvoiceModal) |
+| Storage bucket | Supabase Storage `invoice-documents` | Must be created manually in Supabase dashboard |
+| Setting | `backend/app/config.py` | `dispatcher_url` — base URL for magic links |
+| Env var | `DISPATCHER_URL` | Defaults to `http://localhost:3001` |
+
+**API endpoints:**
+- `POST /api/v1/paperwork/requests` — auth required — create request, returns `{ magic_link, token, doc_types, expires_at }`
+- `GET /api/v1/paperwork/upload/{token}` — **public** — validate token, returns invoice context
+- `POST /api/v1/paperwork/upload/{token}/files` — **public** — multipart upload (file + doc_type), returns doc record
+- `GET /api/v1/paperwork/invoices/{id}/documents` — auth required — returns `{ documents[], requests[] }`
+
+**Token lifecycle:** UUID in DB → 72h expiry → status: `pending` → `fulfilled` (all docs uploaded) / `expired`
+
+**File storage path:** `{org_id}/{invoice_id}/{request_id}/{filename}` in Supabase Storage bucket `invoice-documents`
+
+**Valid doc_types:** `BOL`, `POD`, `RATE_CON`, `WEIGHT_TICKET`, `LUMPER_RECEIPT`, `INVOICE`, `OTHER`
+
+---
+
 ## Cross-Cutting Concerns
 
 ### Styling System

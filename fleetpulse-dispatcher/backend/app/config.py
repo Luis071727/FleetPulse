@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     ai_monthly_budget: float = 30.0
     cors_origins: str = "http://localhost:3000,http://localhost:3001"
     carrier_portal_url: str = "http://localhost:3000"
+    dispatcher_url: str = "http://localhost:3001"
 
 
 settings = Settings()

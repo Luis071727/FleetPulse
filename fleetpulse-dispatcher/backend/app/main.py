@@ -13,6 +13,7 @@ from app.feedback.routes import router as feedback_router
 from app.invoices.routes import router as invoice_router
 from app.insurance.routes import router as insurance_router
 from app.loads.routes import router as load_router
+from app.paperwork.routes import router as paperwork_router
 
 logger = logging.getLogger(__name__)
 
@@ -61,4 +62,5 @@ api_v1.include_router(invoice_router)
 api_v1.include_router(ai_router)
 api_v1.include_router(insurance_router)
 api_v1.include_router(feedback_router)
+api_v1.include_router(paperwork_router)
 app.include_router(api_v1)
