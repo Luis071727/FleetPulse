@@ -369,3 +369,47 @@ export async function listComplianceDocs(carrierId: string) {
 export async function listPendingActions(carrierId: string) {
   return apiFetch(`/carriers/${encodeURIComponent(carrierId)}/pending-actions`);
 }
+
+// ── Paperwork / Document Upload ──
+
+export async function requestPaperwork(data: {
+  invoice_id: string;
+  doc_types: string[];
+  notes?: string;
+  recipient_email?: string;
+}) {
+  return apiFetch("/paperwork/requests", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+// Public endpoint — no auth header injected
+export async function validateUploadToken(token: string) {
+  const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000/api/v1";
+  const res = await fetch(`${BASE}/paperwork/upload/${encodeURIComponent(token)}`);
+  const json = await res.json();
+  if (res.status === 404) return { data: null, error: "Link not found", meta: {} };
+  if (res.status === 410) return { data: null, error: json.detail || "Link expired", meta: {} };
+  return { data: json.data ?? null, error: json.error ?? null, meta: json.meta ?? {} };
+}
+
+// Public endpoint — no auth header injected
+export async function uploadInvoiceFile(token: string, file: File, docType: string) {
+  const BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000/api/v1";
+  const form = new FormData();
+  form.append("file", file);
+  form.append("doc_type", docType);
+  const res = await fetch(`${BASE}/paperwork/upload/${encodeURIComponent(token)}/files`, {
+    method: "POST",
+    body: form,
+  });
+  const json = await res.json();
+  if (res.status === 410) return { data: null, error: json.detail || "Link expired", meta: {} };
+  if (!res.ok) return { data: null, error: json.detail || `Upload failed (${res.status})`, meta: {} };
+  return { data: json.data ?? null, error: json.error ?? null, meta: json.meta ?? {} };
+}
+
+export async function listInvoiceDocuments(invoiceId: string) {
+  return apiFetch(`/paperwork/invoices/${encodeURIComponent(invoiceId)}/documents`);
+}

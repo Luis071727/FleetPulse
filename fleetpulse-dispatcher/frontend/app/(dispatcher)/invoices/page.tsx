@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { listInvoices, listCarriers, markInvoicePaid, draftFollowup, updateInvoice, getInvoice } from "../../../services/api";
+import { listInvoices, listCarriers, markInvoicePaid, draftFollowup, getInvoice } from "../../../services/api";
 import InvoiceRow from "../../../components/InvoiceRow";
 import { AlertTriangle, X } from "../../../components/icons";
 import AddInvoiceModal from "../../../components/AddInvoiceModal";
+import InvoiceDetailModal from "../../../components/InvoiceDetailModal";
 
 type Invoice = Record<string, unknown>;
 type Carrier = { id: string; legal_name: string };
@@ -208,9 +209,9 @@ export default function InvoicePage() {
         </div>
       )}
 
-      {/* Edit Invoice Modal */}
+      {/* Invoice Detail Modal */}
       {editingInvoice && (
-        <EditInvoiceModal
+        <InvoiceDetailModal
           invoice={editingInvoice}
           carriers={carriers}
           onClose={() => { setEditingInvoice(null); clearInvoiceQuery(); }}
@@ -220,107 +221,6 @@ export default function InvoicePage() {
     </div>
   );
 }
-
-/* ── Edit Invoice Modal ── */
-
-function EditInvoiceModal({ invoice, carriers, onClose, onSaved }: {
-  invoice: Invoice; carriers: { id: string; legal_name: string }[];
-  onClose: () => void; onSaved: () => void;
-}) {
-  const [amount, setAmount] = useState(String(invoice.amount || ""));
-  const [invoiceNumber, setInvoiceNumber] = useState((invoice.invoice_number as string) || "");
-  const [carrierId, setCarrierId] = useState((invoice.carrier_id as string) || "");
-  const [customerApEmail, setCustomerApEmail] = useState((invoice.customer_ap_email as string) || "");
-  const [notes, setNotes] = useState((invoice.notes as string) || "");
-  const [issuedDate, setIssuedDate] = useState((invoice.issued_date as string) || "");
-  const [dueDate, setDueDate] = useState((invoice.due_date as string) || "");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      const updates: Record<string, unknown> = {};
-      const numAmount = Number(amount);
-      if (!isNaN(numAmount) && numAmount !== Number(invoice.amount)) updates.amount = numAmount;
-      if (invoiceNumber !== (invoice.invoice_number || "")) updates.invoice_number = invoiceNumber;
-      if (carrierId && carrierId !== invoice.carrier_id) updates.carrier_id = carrierId;
-      if (customerApEmail !== (invoice.customer_ap_email || "")) updates.customer_ap_email = customerApEmail;
-      if (notes !== (invoice.notes || "")) updates.notes = notes;
-      if (issuedDate && issuedDate !== invoice.issued_date) updates.issued_date = issuedDate;
-      if (dueDate && dueDate !== invoice.due_date) updates.due_date = dueDate;
-
-      if (Object.keys(updates).length === 0) {
-        onSaved();
-        return;
-      }
-      const res = await updateInvoice(invoice.id as string, updates);
-      if (res.error) setError(res.error);
-      else onSaved();
-    } catch { setError("Network error"); }
-    finally { setSaving(false); }
-  };
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100 }}
-      onClick={onClose}>
-      <div className="fp-modal" style={{ background: "var(--surface)", borderRadius: 12, padding: 24, width: 480, maxHeight: "80vh", overflowY: "auto", border: "1px solid var(--border)" }}
-        onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h2 style={{ margin: 0, fontSize: 18 }}>Edit Invoice</h2>
-          <button type="button" onClick={onClose}
-            style={{ background: "none", border: "none", color: "var(--mist)", cursor: "pointer", display: "flex", alignItems: "center" }}><X size={18} /></button>
-        </div>
-
-        <div className="fp-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-          <div>
-            <label style={lblStyle}>Invoice #</label>
-            <input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} style={inpStyle} />
-          </div>
-          <div>
-            <label style={lblStyle}>Carrier</label>
-            <select value={carrierId} onChange={(e) => setCarrierId(e.target.value)} style={inpStyle}>
-              <option value="">Select carrier…</option>
-              {carriers.map((c) => <option key={c.id} value={c.id}>{c.legal_name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={lblStyle}>Amount ($)</label>
-            <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} style={inpStyle} />
-          </div>
-          <div>
-            <label style={lblStyle}>Issued Date</label>
-            <input type="date" value={issuedDate} onChange={(e) => setIssuedDate(e.target.value)} style={inpStyle} />
-          </div>
-          <div>
-            <label style={lblStyle}>Due Date</label>
-            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={inpStyle} />
-          </div>
-          <div style={{ gridColumn: "1 / -1" }}>
-            <label style={lblStyle}>Customer AP Email</label>
-            <input type="email" value={customerApEmail} onChange={(e) => setCustomerApEmail(e.target.value)} style={inpStyle} placeholder="ap@customer.com" />
-          </div>
-          <div style={{ gridColumn: "1 / -1" }}>
-            <label style={lblStyle}>Notes</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} style={{ ...inpStyle, resize: "vertical" }} />
-          </div>
-        </div>
-
-        {error && <p style={{ color: "var(--red)", fontSize: 13 }}>{error}</p>}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button type="button" onClick={onClose} style={{ padding: "8px 16px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--mist)", fontSize: 14, cursor: "pointer" }}>Cancel</button>
-          <button type="button" onClick={handleSave} disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}>
-            {saving ? "Saving…" : "Save Changes"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const lblStyle: React.CSSProperties = { fontSize: 11, color: "var(--mist)", display: "block", marginBottom: 3, fontWeight: 500 };
-const inpStyle: React.CSSProperties = { padding: "8px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--white)", fontSize: 14, width: "100%" };
 
 const btnPrimary: React.CSSProperties = {
   padding: "8px 16px", borderRadius: 6, border: "none", background: "var(--amber)",
