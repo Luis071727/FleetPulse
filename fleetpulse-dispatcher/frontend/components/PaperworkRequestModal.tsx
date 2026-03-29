@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { requestPaperwork } from "../services/api";
-import { X } from "./icons";
+import { CircleCheck, X } from "./icons";
 
 type Props = {
   invoiceId: string;
@@ -100,7 +100,9 @@ export default function PaperworkRequestModal({ invoiceId, invoiceNumber, onClos
         {result ? (
           <div>
             <div style={{ background: "#14291a", border: "1px solid #22c55e44", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
-              <p style={{ margin: "0 0 4px", fontSize: 13, color: "#86efac", fontWeight: 600 }}>✅ Link generated</p>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: "#86efac", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                <CircleCheck size={14} style={{ color: "#22c55e" }} /> Link generated
+              </p>
               <p style={{ margin: 0, fontSize: 12, color: "#64748b" }}>
                 Expires {expiresLabel} · {result.doc_types.length} doc{result.doc_types.length !== 1 ? "s" : ""} requested
               </p>
