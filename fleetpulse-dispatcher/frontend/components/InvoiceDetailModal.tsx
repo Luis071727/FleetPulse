@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { updateInvoice, listInvoiceDocuments } from "../services/api";
 import PaperworkRequestModal from "./PaperworkRequestModal";
-import { X } from "./icons";
+import { CircleCheck, FileText, Folder, Image, X } from "./icons";
 
 type Invoice = Record<string, unknown>;
 type Carrier = { id: string; legal_name: string };
@@ -239,7 +239,9 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
                               border: "1px solid var(--border)", transition: "border-color 0.15s",
                             }}
                           >
-                            <span style={{ fontSize: 24 }}>{doc.file_name.match(/\.(pdf)$/i) ? "📄" : "🖼️"}</span>
+                            {doc.file_name.match(/\.(pdf)$/i)
+                              ? <FileText size={24} style={{ flexShrink: 0, color: "#94a3b8" }} />
+                              : <Image size={24} style={{ flexShrink: 0, color: "#94a3b8" }} />}
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <p style={{ margin: 0, fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                 {doc.file_name}
@@ -303,7 +305,9 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
                   {/* Empty state */}
                   {documents.length === 0 && requests.length === 0 && (
                     <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                      <div style={{ fontSize: 40, marginBottom: 12 }}>📂</div>
+                      <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}>
+                        <Folder size={40} style={{ color: "#475569" }} />
+                      </div>
                       <p style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 600 }}>No documents yet</p>
                       <p style={{ margin: 0, fontSize: 13, color: "var(--mist)" }}>
                         Use "Request Paperwork" to send a link to the driver.
