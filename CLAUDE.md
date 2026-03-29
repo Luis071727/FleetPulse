@@ -313,3 +313,151 @@ Supabase Realtime subscriptions are set up in components that need live updates 
 - Active development branch: `claude/add-claude-documentation-aOq5O`
 - GitHub repo: `luis071727/fleetpulse`
 - Commit messages: imperative mood, concise (`Add load analysis AI endpoint`, `Fix invoice RLS policy`)
+
+---
+
+## Development Workflow System
+
+This section defines the structured workflow for all development tasks. It exists to minimize context usage and enable one-shot task execution.
+
+### Persistent Artifacts
+
+| File | Purpose | When to read | When to update |
+|------|---------|--------------|----------------|
+| `CLAUDE.md` | Stack, conventions, env vars | Every session start | When stack or conventions change |
+| `.claude/map.md` | File-level connection map per feature | Before any implementation | After research reveals new connections |
+| `.claude/plans/<slug>.md` | Indexed, phased implementation plans | When executing a specific phase | After each phase completes |
+| `.claude/progress.md` | Active work state across sessions | When resuming work | After every phase start/complete/block |
+
+### Plan File Format
+
+All plan files follow this structure so individual phases can be referenced without reading the full file:
+
+```markdown
+# Plan: <Feature Name>
+Status: DRAFT | READY | IN_PROGRESS | DONE
+Branch: <branch-name>
+Created: YYYY-MM-DD
+
+## Phase Index
+- [ ] P1 — <short label>
+- [ ] P2 — <short label> (depends: P1)
+- [ ] P3 — <short label> (depends: P2)
+
+## P1 — <Label>
+**Depends on:** none
+**Files:** <list only the files this phase touches>
+**Goal:** <one sentence>
+**Steps:**
+1. ...
+2. ...
+**Done when:** <observable, testable condition>
+```
+
+Reference a phase with: *"Implement P2 of plan `invoice-realtime`"* — agent reads only the P2 block.
+
+---
+
+### Flow 4.1 — Bug Fix
+
+**Prompt shape to give the agent:**
+```
+Flow: Bug Fix
+Bug: <describe symptom>
+Area: <route, component, or module>
+Reproduce: <steps or error message / stack trace>
+```
+
+**Agent steps:**
+1. Read `.claude/map.md` section for the affected area
+2. Read the specific files — no wider exploration
+3. Form a hypothesis → write a 3-step fix plan (max)
+4. If impact touches >2 unrelated areas, surface that before implementing
+5. Implement fix
+6. Update `.claude/map.md` if new connections were discovered
+7. Update `.claude/progress.md`
+
+---
+
+### Flow 4.2 — Enhancement
+
+**Prompt shape:**
+```
+Flow: Enhancement
+Current behavior: <what it does now>
+Desired behavior: <what it should do>
+Area: <feature>
+```
+
+**Agent steps:**
+1. Read `.claude/map.md` for the area
+2. Identify what changes and what it touches (impact surface)
+3. If impact > 2 files or crosses layers (frontend + backend): write a mini-plan and get approval before coding
+4. Implement
+5. Update `.claude/map.md` if needed
+
+---
+
+### Flow 4.3 — UX Change
+
+**Prompt shape:**
+```
+Flow: UX
+Change: <what needs to change visually or structurally>
+Scope: component | page | global
+Reference: <design token / color / screenshot description>
+```
+
+**Agent steps:**
+1. Read `tailwind.config.ts` + relevant component/page
+2. If scope is **global** (brand, fonts, spacing scale): read `.claude/map.md` Cross-Cutting → Styling System first, enumerate all affected files before touching any
+3. Implement change
+4. Do not touch non-visual logic — keep changes in JSX/CSS only unless the UX requirement forces logic changes
+
+---
+
+### Flow 4.4 — New Feature
+
+**Prompt shape:**
+```
+Flow: New Feature
+Feature: <name + description>
+Entry point: <page or route it will live on>
+Spec: <attach or describe requirements>
+```
+
+**Agent steps:**
+1. Read `.claude/map.md` for adjacent features to understand integration points
+2. Research phase: explore files that the new feature will connect to
+3. Write a full indexed plan to `.claude/plans/<slug>.md` — get approval before any code
+4. Implement phase by phase
+5. Update `.claude/map.md` after each phase
+6. Update `.claude/progress.md` after each phase
+
+---
+
+### Progress File Format
+
+`.claude/progress.md` tracks active state so any session can resume instantly:
+
+```markdown
+# Active Work — Last updated: YYYY-MM-DD
+
+## In Progress
+- Plan: `<slug>` → P<N> — <label>
+
+## Blocked
+- Plan: `<slug>` → P<N> — <reason / question>
+
+## Recently Completed
+- `<slug>` — <date> — <one-line summary>
+- `<slug>` — <date> — <one-line summary>
+```
+
+### Token Efficiency Rules
+
+1. **Always read `.claude/map.md` first** — never explore the codebase blind
+2. **Read only the files listed in the map section** for the feature you're working on
+3. **Reference plan phases by ID** (e.g., "P2") — never re-read completed phases
+4. **One phase = one commit** — keeps diffs reviewable and progress trackable
+5. **Update map.md immediately** when you discover a connection not already listed
