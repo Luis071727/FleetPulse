@@ -215,3 +215,32 @@ export const FileText = multiPath(
 
 /** Lucide: bell — Notification/reminder icon */
 export const Bell = icon("M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0");
+
+/** Lucide: camera — Take photo */
+export const Camera = multiPath(
+  <>
+    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+    <circle cx="12" cy="13" r="3" />
+  </>
+);
+
+/** Lucide: upload — Choose / upload file */
+export const Upload = multiPath(
+  <>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <path d="M17 8 12 3 7 8" />
+    <path d="M12 3v12" />
+  </>
+);
+
+/** Lucide: folder — Empty documents state */
+export const Folder = icon("M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z");
+
+/** Lucide: image — Image file type */
+export const Image = multiPath(
+  <>
+    <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+    <circle cx="9" cy="9" r="2" />
+    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+  </>
+);

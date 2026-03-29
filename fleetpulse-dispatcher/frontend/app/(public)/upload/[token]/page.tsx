@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { validateUploadToken, uploadInvoiceFile } from "../../../../services/api";
+import { AlertTriangle, Camera, CircleCheck, FileText, Upload } from "../../../../components/icons";
 
 type RequestInfo = {
   request_id: string;
@@ -101,7 +102,7 @@ export default function UploadPage({ params }: { params: { token: string } }) {
   if (linkError) {
     return (
       <div style={centerStyle}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>🔗</div>
+        <AlertTriangle size={48} style={{ color: "#f59e0b", marginBottom: 16 }} />
         <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>Link unavailable</h2>
         <p style={{ color: "#94a3b8", maxWidth: 320, textAlign: "center", margin: 0 }}>
           {linkError} Contact your dispatcher to request a new link.
@@ -113,7 +114,7 @@ export default function UploadPage({ params }: { params: { token: string } }) {
   if (allDone) {
     return (
       <div style={centerStyle}>
-        <div style={{ fontSize: 56, marginBottom: 16 }}>✅</div>
+        <CircleCheck size={56} style={{ color: "#22c55e", marginBottom: 16 }} />
         <h2 style={{ margin: "0 0 8px", fontSize: 22, color: "#22c55e" }}>All done — thank you!</h2>
         <p style={{ color: "#94a3b8", maxWidth: 320, textAlign: "center", margin: 0 }}>
           Your documents have been received. Your dispatcher has been notified.
@@ -130,7 +131,7 @@ export default function UploadPage({ params }: { params: { token: string } }) {
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-          <span style={{ fontSize: 28 }}>📋</span>
+          <FileText size={28} style={{ color: "#f59e0b" }} />
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Document Upload</h1>
         </div>
         <div style={{ background: "#1e293b", borderRadius: 10, padding: "14px 16px", display: "grid", gap: 4 }}>
@@ -188,7 +189,7 @@ export default function UploadPage({ params }: { params: { token: string } }) {
                     <p style={{ margin: "4px 0 0", fontSize: 12, color: "#f87171" }}>{up.error} — tap to retry</p>
                   )}
                 </div>
-                {isDone && <span style={{ fontSize: 22 }}>✅</span>}
+                {isDone && <CircleCheck size={22} style={{ color: "#22c55e", flexShrink: 0 }} />}
                 {isUploading && <div style={{ ...spinnerStyle, width: 22, height: 22 }} />}
               </div>
 
@@ -217,7 +218,7 @@ export default function UploadPage({ params }: { params: { token: string } }) {
                       }}
                       style={{ ...uploadBtnStyle, flex: 1 }}
                     >
-                      {isUploading ? "Uploading…" : "📷 Take Photo"}
+                      {isUploading ? "Uploading…" : <><Camera size={15} style={{ marginRight: 6, verticalAlign: "middle" }} />Take Photo</>}
                     </button>
                     <button
                       type="button"
@@ -230,7 +231,7 @@ export default function UploadPage({ params }: { params: { token: string } }) {
                       }}
                       style={{ ...uploadBtnStyle, flex: 1, background: "transparent", color: "#94a3b8", borderColor: "#334155" }}
                     >
-                      📁 Choose File
+                      <Upload size={15} style={{ marginRight: 6, verticalAlign: "middle" }} />Choose File
                     </button>
                   </div>
                 </>
