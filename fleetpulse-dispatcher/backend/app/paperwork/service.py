@@ -21,8 +21,12 @@ class PaperworkService:
         recipient_email: str | None,
     ) -> dict:
         sb = get_supabase()
+        # Generate token explicitly so the magic link is correct even if the DB
+        # insert fails and we fall back to the in-memory row (DB default wouldn't fire).
+        token = str(uuid4())
         row = {
             "id": str(uuid4()),
+            "token": token,
             "organization_id": org_id,
             "invoice_id": invoice_id,
             "doc_types": doc_types,
@@ -34,7 +38,7 @@ class PaperworkService:
         record = result.data[0] if result.data else row
 
         dispatcher_url = getattr(settings, "dispatcher_url", "http://localhost:3001")
-        record["magic_link"] = f"{dispatcher_url}/upload/{record['token'] if 'token' in record else row['id']}"
+        record["magic_link"] = f"{dispatcher_url}/upload/{record.get('token', token)}"
         return record
 
     def get_request_by_token(self, token: str) -> dict | None:
