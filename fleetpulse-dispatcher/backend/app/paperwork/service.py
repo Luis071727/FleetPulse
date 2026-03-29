@@ -121,18 +121,19 @@ class PaperworkService:
         safe_name = filename.replace("/", "_").replace("..", "_")
         storage_path = f"{org_id}/{invoice_id}/{request_id}/{safe_name}"
 
-        # Upload to Supabase Storage
-        file_url = ""
+        # Upload to Supabase Storage — store the path, not a public URL.
+        # Public URLs don't work for private buckets; signed URLs are generated
+        # at read time in list_documents().
         try:
             sb.storage.from_(STORAGE_BUCKET).upload(
                 storage_path,
                 file_bytes,
                 file_options={"content-type": content_type, "upsert": "true"},
             )
-            file_url = sb.storage.from_(STORAGE_BUCKET).get_public_url(storage_path)
+            file_url = storage_path  # store path; signed URL generated on read
         except Exception as exc:
-            logger.warning("Storage upload failed (%s), storing path only", exc)
-            file_url = storage_path  # Fallback: store path, dispatcher can retrieve manually
+            logger.error("Storage upload failed: %s", exc)
+            raise RuntimeError(f"File upload to storage failed: {exc}") from exc
 
         # Record in DB
         doc_row = {
@@ -145,8 +146,12 @@ class PaperworkService:
             "file_url": file_url,
             "file_size": len(file_bytes),
         }
-        result = safe_execute(sb.table("invoice_documents").insert(doc_row), fallback=[doc_row])
-        doc = result.data[0] if result.data else doc_row
+        try:
+            result = sb.table("invoice_documents").insert(doc_row).execute()
+            doc = result.data[0] if result.data else doc_row
+        except Exception as exc:
+            logger.error("Failed to persist invoice_documents record: %s", exc)
+            raise RuntimeError(f"Could not save document record: {exc}") from exc
 
         # Check if all requested doc_types are now fulfilled
         self._maybe_fulfill_request(req, sb)
@@ -167,7 +172,18 @@ class PaperworkService:
                 .order("uploaded_at", desc=False)
                 .execute()
             )
-            documents = doc_result.data or []
+            raw_docs = doc_result.data or []
+            # Generate a signed URL (1 h) for each document so the dispatcher
+            # can view/download files from a private bucket.
+            for doc in raw_docs:
+                path = doc.get("file_url", "")
+                if path and not path.startswith("http"):
+                    try:
+                        signed = sb.storage.from_(STORAGE_BUCKET).create_signed_url(path, 3600)
+                        doc["file_url"] = signed.get("signedURL") or signed.get("signedUrl") or path
+                    except Exception as exc:
+                        logger.warning("Could not sign URL for %s: %s", path, exc)
+            documents = raw_docs
         except Exception:
             logger.debug("DB list invoice_documents failed")
 
