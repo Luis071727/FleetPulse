@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-03-29
+Last updated: 2026-03-30
 
 ---
 
@@ -105,13 +105,13 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 ### DOCUMENT REQUESTS (sub-resource of Loads)
 
+> **Removed from dispatcher UI.** Document requests are now handled via the Invoice and Carrier compliance flows. Backend routes remain for the Carrier Portal.
+
 | Layer | File | Notes |
 |-------|------|-------|
-| API calls | `services/api.ts:327–347` | `listDocumentRequests`, `createDocumentRequest`, `updateDocumentRequest`, `deleteDocumentRequest` |
-| Backend | `backend/app/loads/routes.py:324–457` | Sub-routes on `/loads/{load_id}/document-requests` |
+| API calls | `services/api.ts` | `listDocumentRequests`, `createDocumentRequest`, `updateDocumentRequest`, `deleteDocumentRequest` — no longer used in dispatcher loads page |
+| Backend | `backend/app/loads/routes.py` | Sub-routes on `/loads/{load_id}/document-requests` — kept for carrier portal |
 | DB table | `document_requests` | id, load_id, doc_type, label/notes, status, carrier_id |
-| Valid doc_types | `backend/app/loads/routes.py:326` | `BOL`, `POD`, `RATE_CON`, `INVOICE`, `OTHER` |
-| Valid statuses | `backend/app/loads/routes.py:327` | `approved`, `rejected` |
 | Carrier view | `FleetPulse/components/ComplianceDocRow.tsx` | Renders doc request in compliance page |
 
 ---
@@ -176,11 +176,13 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 ### COMPLIANCE DOCUMENTS (sub-resource of Carriers)
 
+> **Note:** The dispatcher-side compliance management has been fully replaced by the CARRIER COMPLIANCE DOCUMENTS feature below. The legacy endpoints below still exist for the Carrier Portal read-only view.
+
 | Layer | File | Notes |
 |-------|------|-------|
-| API calls | `services/api.ts:363–371` | `listComplianceDocs`, `listPendingActions` |
-| Backend | `backend/app/carriers/routes.py` | `/carriers/{id}/compliance-documents`, `/carriers/{id}/pending-actions` |
-| Carrier page | `FleetPulse/app/compliance/page.tsx` | Carrier's compliance view |
+| Legacy API calls | `services/api.ts` | `listComplianceDocs`, `listPendingActions` — no longer used in dispatcher UI |
+| Legacy backend | `backend/app/carriers/routes.py` | `GET /carriers/{id}/compliance-documents`, `GET /carriers/{id}/pending-actions` — kept for carrier portal |
+| Carrier page | `FleetPulse/app/compliance/page.tsx` | Carrier's own compliance view |
 | Component | `FleetPulse/components/ComplianceDocRow.tsx` | Individual doc row |
 
 ---
@@ -302,30 +304,69 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Layer | File | Notes |
 |-------|------|-------|
 | DB tables | `invoice_document_requests`, `invoice_documents` | Migration: `20260329_invoice_paperwork.sql` |
-| Backend service | `backend/app/paperwork/service.py` | `PaperworkService` — create_request, get_request_by_token, upload_file, list_documents |
-| Backend routes | `backend/app/paperwork/routes.py` | 4 endpoints (see below) |
+| Grants fix | — | Migration: `20260329_invoice_paperwork_grants.sql` — `GRANT ALL TO service_role` |
+| Backend service | `backend/app/paperwork/service.py` | `PaperworkService` — create_request, get_request_by_token, upload_file, upload_file_direct, list_documents (signed URLs) |
+| Backend routes | `backend/app/paperwork/routes.py` | 5 endpoints (see below) |
 | Router registration | `backend/app/main.py` | `paperwork_router` included in api_v1 |
-| API calls | `services/api.ts` (bottom of file) | `requestPaperwork`, `validateUploadToken`, `uploadInvoiceFile`, `listInvoiceDocuments` |
-| Public upload page | `fleetpulse-dispatcher/frontend/app/(public)/upload/[token]/page.tsx` | Driver-facing, no auth required |
-| Public layout | `fleetpulse-dispatcher/frontend/app/(public)/layout.tsx` | Bare layout, no nav |
+| API calls | `services/api.ts` | `requestPaperwork`, `validateUploadToken`, `uploadInvoiceFile`, `listInvoiceDocuments`, `uploadInvoiceFileDirect` |
+| Public upload page | `app/(public)/upload/[token]/page.tsx` | Driver-facing, no auth required |
+| Public layout | `app/(public)/layout.tsx` | Bare `<div>` wrapper — NOT html/body (avoids duplicate root layout) |
 | Request modal | `components/PaperworkRequestModal.tsx` | Dispatcher creates request + copies link |
-| Detail modal | `components/InvoiceDetailModal.tsx` | Tabbed: Details + Documents — replaces EditInvoiceModal |
-| Invoices page | `app/(dispatcher)/invoices/page.tsx` | Uses InvoiceDetailModal (replaces EditInvoiceModal) |
-| Storage bucket | Supabase Storage `invoice-documents` | Must be created manually in Supabase dashboard |
+| Detail modal | `components/InvoiceDetailModal.tsx` | Tabbed: Details + Documents; upload toolbar (dispatcher direct upload) + Request from Driver |
+| Invoices page | `app/(dispatcher)/invoices/page.tsx` | Uses InvoiceDetailModal |
+| Storage bucket | Supabase Storage `invoice-documents` | Private bucket — must be created manually |
 | Setting | `backend/app/config.py` | `dispatcher_url` — base URL for magic links |
 | Env var | `DISPATCHER_URL` | Defaults to `http://localhost:3001` |
 
 **API endpoints:**
-- `POST /api/v1/paperwork/requests` — auth required — create request, returns `{ magic_link, token, doc_types, expires_at }`
+- `POST /api/v1/paperwork/requests` — auth — create request, returns `{ magic_link, token, doc_types, expires_at }`
 - `GET /api/v1/paperwork/upload/{token}` — **public** — validate token, returns invoice context
-- `POST /api/v1/paperwork/upload/{token}/files` — **public** — multipart upload (file + doc_type), returns doc record
-- `GET /api/v1/paperwork/invoices/{id}/documents` — auth required — returns `{ documents[], requests[] }`
+- `POST /api/v1/paperwork/upload/{token}/files` — **public** — multipart (file + doc_type)
+- `POST /api/v1/paperwork/invoices/{id}/files` — dispatcher auth — direct upload (multipart)
+- `GET /api/v1/paperwork/invoices/{id}/documents` — auth — returns `{ documents[], requests[] }`
 
-**Token lifecycle:** UUID in DB → 72h expiry → status: `pending` → `fulfilled` (all docs uploaded) / `expired`
+**Token lifecycle:** UUID in DB → 72h expiry → status: `pending` → `fulfilled` / `expired`
 
-**File storage path:** `{org_id}/{invoice_id}/{request_id}/{filename}` in Supabase Storage bucket `invoice-documents`
+**File storage path:** `{org_id}/{invoice_id}/{request_id}/{filename}` (token upload) or `{org_id}/{invoice_id}/direct/{filename}` (dispatcher upload)
 
 **Valid doc_types:** `BOL`, `POD`, `RATE_CON`, `WEIGHT_TICKET`, `LUMPER_RECEIPT`, `INVOICE`, `OTHER`
+
+---
+
+### CARRIER COMPLIANCE DOCUMENTS (Magic Link + Direct Upload)
+
+| Layer | File | Notes |
+|-------|------|-------|
+| DB table (enhanced) | `compliance_documents` | Migration `20260330_carrier_compliance.sql` adds: `issue_date`, `file_url`, `file_name`, `file_size`, `request_id`, `organization_id`, `uploaded_at` |
+| DB table (new) | `carrier_document_requests` | Same migration — token, carrier_id, org_id, doc_types[], 72h expiry |
+| Constraint fix | — | Migration `20260330_carrier_compliance_doctype_fix.sql` — drops old `doc_type_check`, adds one covering all types |
+| Backend module | `backend/app/carrier_compliance/` | `__init__.py` + `service.py` + `routes.py` |
+| Backend service | `backend/app/carrier_compliance/service.py` | `CarrierComplianceService` — create_request, get_request_by_token, upload_file, upload_file_direct, list_documents (signed URLs), _maybe_fulfill |
+| Backend routes | `backend/app/carrier_compliance/routes.py` | 5 endpoints (see below) |
+| Router registration | `backend/app/main.py` | `carrier_compliance_router` included in api_v1 |
+| API calls | `services/api.ts` | `requestCarrierDocs`, `validateCarrierUploadToken`, `uploadCarrierFile`, `uploadCarrierFileDirect`, `listCarrierDocuments` |
+| Public upload page | `app/(public)/carrier-upload/[token]/page.tsx` | Carrier/owner-facing; per-doc issue_date + expiry_date inputs |
+| Compliance modal | `components/CarrierComplianceModal.tsx` | Central compliance hub: upload toolbar (doc_type + issue_date + expires_at + file), document list with expiry badges, open requests with Copy Link |
+| Request modal | `components/CarrierDocumentRequestModal.tsx` | Checkbox doc type selector → generates magic link |
+| Carriers page | `app/(dispatcher)/carriers/page.tsx` | Drawer Compliance section → "Manage Documents" button opens CarrierComplianceModal |
+| Storage bucket | Supabase Storage `carrier-documents` | Private bucket — must be created manually |
+
+**API endpoints:**
+- `POST /api/v1/carrier-compliance/requests` — dispatcher auth — create magic link request
+- `GET /api/v1/carrier-compliance/upload/{token}` — **public** — validate token, returns carrier context
+- `POST /api/v1/carrier-compliance/upload/{token}/files` — **public** — multipart (file + doc_type + issue_date? + expires_at?)
+- `POST /api/v1/carrier-compliance/carriers/{id}/documents` — dispatcher auth — direct upload
+- `GET /api/v1/carrier-compliance/carriers/{id}/documents` — auth — returns `{ documents[], requests[] }`
+
+**Token lifecycle:** same as invoice paperwork — UUID → 72h → pending / fulfilled / expired
+
+**File storage paths:**
+- Token upload: `{org_id}/{carrier_id}/{request_id}/{filename}`
+- Direct upload: `{org_id}/{carrier_id}/direct/{filename}`
+
+**Valid doc_types:** `MC_AUTHORITY`, `W9`, `VOID_CHECK`, `CARRIER_AGREEMENT`, `NOA`, `COI`, `CDL`, `OTHER`
+
+**Expiry status logic (frontend):** expired if `expires_at < today`; expiring_soon if within 30 days; active otherwise
 
 ---
 
@@ -351,12 +392,16 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 ### Database Migrations (apply in order)
 ```
 supabase/migrations/
-  20260317_init_schema.sql      ← base tables
-  20260317_init_rls.sql         ← RLS policies
-  20260317_seed.sql             ← test data
-  20260318_expand_schema.sql    ← schema additions
-  20260319_*.sql                ← incremental fixes
+  20260317_init_schema.sql                        ← base tables
+  20260317_init_rls.sql                           ← RLS policies
+  20260317_seed.sql                               ← test data
+  20260318_expand_schema.sql                      ← schema additions
+  20260319_*.sql                                  ← incremental fixes
   20260324_fix_invoice_defaults.sql
+  20260329_invoice_paperwork.sql                  ← invoice_document_requests + invoice_documents
+  20260329_invoice_paperwork_grants.sql           ← GRANT ALL TO service_role (critical)
+  20260330_carrier_compliance.sql                 ← enhance compliance_documents + carrier_document_requests
+  20260330_carrier_compliance_doctype_fix.sql     ← drop/replace doc_type CHECK constraint
 ```
 
 ### Supabase Client Rules
