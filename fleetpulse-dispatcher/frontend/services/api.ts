@@ -429,3 +429,72 @@ export async function uploadInvoiceFileDirect(invoiceId: string, file: File, doc
   if (!res.ok) return { data: null, error: json.detail ?? json.error ?? "Upload failed" };
   return json;
 }
+
+// ── Carrier Compliance Documents ──────────────────────────────────────────────
+
+export async function requestCarrierDocs(data: {
+  carrier_id: string;
+  doc_types: string[];
+  notes?: string;
+  recipient_email?: string;
+}) {
+  return apiFetch("/carrier-compliance/requests", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function validateCarrierUploadToken(token: string) {
+  const base = process.env.NEXT_PUBLIC_API_BASE ?? "";
+  const res = await fetch(`${base}/carrier-compliance/upload/${encodeURIComponent(token)}`);
+  const json = await res.json().catch(() => ({ error: "Invalid response" }));
+  if (!res.ok) return { data: null, error: json.detail ?? json.error ?? `HTTP ${res.status}` };
+  return json;
+}
+
+export async function uploadCarrierFile(
+  token: string,
+  file: File,
+  docType: string,
+  issueDate?: string,
+  expiresAt?: string,
+) {
+  const base = process.env.NEXT_PUBLIC_API_BASE ?? "";
+  const form = new FormData();
+  form.append("file", file);
+  form.append("doc_type", docType);
+  if (issueDate) form.append("issue_date", issueDate);
+  if (expiresAt) form.append("expires_at", expiresAt);
+  const res = await fetch(`${base}/carrier-compliance/upload/${encodeURIComponent(token)}/files`, {
+    method: "POST",
+    body: form,
+  });
+  const json = await res.json().catch(() => ({ error: "Invalid response" }));
+  if (!res.ok) return { data: null, error: json.detail ?? json.error ?? "Upload failed" };
+  return json;
+}
+
+export async function uploadCarrierFileDirect(
+  carrierId: string,
+  file: File,
+  docType: string,
+  issueDate?: string,
+  expiresAt?: string,
+) {
+  const token = getToken();
+  const base = process.env.NEXT_PUBLIC_API_BASE ?? "";
+  const form = new FormData();
+  form.append("file", file);
+  form.append("doc_type", docType);
+  if (issueDate) form.append("issue_date", issueDate);
+  if (expiresAt) form.append("expires_at", expiresAt);
+  const res = await fetch(`${base}/carrier-compliance/carriers/${encodeURIComponent(carrierId)}/documents`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  const json = await res.json().catch(() => ({ error: "Invalid response" }));
+  if (!res.ok) return { data: null, error: json.detail ?? json.error ?? "Upload failed" };
+  return json;
+}
+
+export async function listCarrierDocuments(carrierId: string) {
+  return apiFetch(`/carrier-compliance/carriers/${encodeURIComponent(carrierId)}/documents`);
+}

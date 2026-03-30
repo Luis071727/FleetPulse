@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.ai.routes import router as ai_router
 from app.auth.routes import router as auth_router
+from app.carrier_compliance.routes import router as carrier_compliance_router
 from app.carriers.routes import router as carrier_router
 from app.common.schemas import ResponseEnvelope
 from app.config import settings
@@ -57,6 +58,7 @@ def health_v1() -> ResponseEnvelope:
 
 api_v1.include_router(auth_router)
 api_v1.include_router(carrier_router)
+api_v1.include_router(carrier_compliance_router)
 api_v1.include_router(load_router)
 api_v1.include_router(invoice_router)
 api_v1.include_router(ai_router)
