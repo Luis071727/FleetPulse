@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { listLoads, listCarriers, analyzeLoad, updateLoad, deleteLoad, getLoad, listDocumentRequests, createDocumentRequest, updateDocumentRequest, deleteDocumentRequest, listMessages, sendMessage } from "../../../services/api";
+import { listLoads, listCarriers, analyzeLoad, updateLoad, deleteLoad, getLoad, listMessages, sendMessage } from "../../../services/api";
 import { X } from "../../../components/icons";
 import LogLoadModal from "../../../components/LogLoadModal";
 
@@ -294,13 +294,6 @@ function EditLoadModal({ load, carriers, onClose, onSaved }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Document Requests state
-  const [docRequests, setDocRequests] = useState<R[]>([]);
-  const [docRequestsLoading, setDocRequestsLoading] = useState(true);
-  const [newDocType, setNewDocType] = useState("BOL");
-  const [newDocNotes, setNewDocNotes] = useState("");
-  const [docRequestSaving, setDocRequestSaving] = useState(false);
-
   // Messages state
   const [messages, setMessages] = useState<R[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(true);
@@ -308,15 +301,6 @@ function EditLoadModal({ load, carriers, onClose, onSaved }: {
   const [messageSending, setMessageSending] = useState(false);
 
   const loadId = load.id as string;
-
-  const fetchDocRequests = useCallback(async () => {
-    setDocRequestsLoading(true);
-    try {
-      const res = await listDocumentRequests(loadId);
-      setDocRequests((res.data as R[]) || []);
-    } catch { /* */ }
-    finally { setDocRequestsLoading(false); }
-  }, [loadId]);
 
   const fetchMessages = useCallback(async () => {
     setMessagesLoading(true);
@@ -328,9 +312,8 @@ function EditLoadModal({ load, carriers, onClose, onSaved }: {
   }, [loadId]);
 
   useEffect(() => {
-    fetchDocRequests();
     fetchMessages();
-  }, [fetchDocRequests, fetchMessages]);
+  }, [fetchMessages]);
 
   const numRate = Number(rate) || 0;
   const numDriverPay = Number(driverPay) || 0;
@@ -364,31 +347,6 @@ function EditLoadModal({ load, carriers, onClose, onSaved }: {
     finally { setSaving(false); }
   };
 
-  const handleCreateDocRequest = async () => {
-    setDocRequestSaving(true);
-    try {
-      await createDocumentRequest(loadId, { doc_type: newDocType, notes: newDocNotes || undefined });
-      setNewDocNotes("");
-      await fetchDocRequests();
-    } catch { /* */ }
-    finally { setDocRequestSaving(false); }
-  };
-
-  const handleUpdateDocRequest = async (requestId: string, newStatus: string) => {
-    try {
-      await updateDocumentRequest(loadId, requestId, { status: newStatus });
-      await fetchDocRequests();
-    } catch { /* */ }
-  };
-
-  const handleDeleteDocRequest = async (requestId: string) => {
-    if (!confirm("Delete this document request?")) return;
-    try {
-      await deleteDocumentRequest(loadId, requestId);
-      await fetchDocRequests();
-    } catch { /* */ }
-  };
-
   const handleSendMessage = async () => {
     if (!messageBody.trim()) return;
     setMessageSending(true);
@@ -398,13 +356,6 @@ function EditLoadModal({ load, carriers, onClose, onSaved }: {
       await fetchMessages();
     } catch { /* */ }
     finally { setMessageSending(false); }
-  };
-
-  const docStatusColor = (s: string) => {
-    if (s === "approved") return "#22c55e";
-    if (s === "uploaded") return "#60a5fa";
-    if (s === "rejected") return "#ef4444";
-    return "#f59e0b"; // pending
   };
 
   const inputStyle: React.CSSProperties = {
@@ -457,73 +408,6 @@ function EditLoadModal({ load, carriers, onClose, onSaved }: {
           <button type="button" onClick={handleSave} disabled={saving} style={{ ...btnAdd, opacity: saving ? 0.6 : 1 }}>
             {saving ? "Saving…" : "Save Changes"}
           </button>
-        </div>
-
-        {/* ── Document Requests ── */}
-        <div style={{ borderTop: "1px solid #1e293b", paddingTop: 16, marginBottom: 20 }}>
-          <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600, color: "#f8fafc" }}>Document Requests</h3>
-
-          {/* Create form */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "flex-end" }}>
-            <div style={{ flex: "0 0 140px" }}>
-              <label style={labelStyle}>Doc Type</label>
-              <select value={newDocType} onChange={e => setNewDocType(e.target.value)}
-                style={{ ...inputStyle, padding: "7px 10px" }}>
-                {["BOL", "POD", "RATE_CON", "INVOICE", "OTHER"].map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Notes (optional)</label>
-              <input value={newDocNotes} onChange={e => setNewDocNotes(e.target.value)}
-                style={inputStyle} placeholder="e.g. Signed BOL required" />
-            </div>
-            <button type="button" onClick={handleCreateDocRequest} disabled={docRequestSaving}
-              style={{ padding: "8px 14px", borderRadius: 6, border: "none", background: "#f59e0b", color: "#000", fontSize: 13, cursor: "pointer", fontWeight: 600, opacity: docRequestSaving ? 0.6 : 1, whiteSpace: "nowrap" }}>
-              {docRequestSaving ? "…" : "Request Document"}
-            </button>
-          </div>
-
-          {/* List */}
-          {docRequestsLoading ? (
-            <p style={{ fontSize: 13, color: "#64748b" }}>Loading…</p>
-          ) : docRequests.length === 0 ? (
-            <p style={{ fontSize: 13, color: "#64748b" }}>No document requests yet.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {docRequests.map((dr) => {
-                const st = dr.status as string;
-                return (
-                  <div key={dr.id as string} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, background: "#0f172a", border: "1px solid #1e293b" }}>
-                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 700, background: "#334155", color: "#f8fafc", whiteSpace: "nowrap" }}>
-                      {dr.doc_type as string}
-                    </span>
-                    <span style={{ flex: 1, fontSize: 13, color: "#94a3b8" }}>{(dr.notes as string) || "—"}</span>
-                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 600, background: `${docStatusColor(st)}22`, color: docStatusColor(st), textTransform: "uppercase", whiteSpace: "nowrap" }}>
-                      {st}
-                    </span>
-                    {st !== "approved" && st !== "rejected" && (
-                      <>
-                        <button type="button" onClick={() => handleUpdateDocRequest(dr.id as string, "approved")}
-                          style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid #22c55e44", background: "transparent", color: "#22c55e", fontSize: 11, cursor: "pointer" }}>
-                          Approve
-                        </button>
-                        <button type="button" onClick={() => handleUpdateDocRequest(dr.id as string, "rejected")}
-                          style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid #ef444444", background: "transparent", color: "#ef4444", fontSize: 11, cursor: "pointer" }}>
-                          Reject
-                        </button>
-                      </>
-                    )}
-                    <button type="button" onClick={() => handleDeleteDocRequest(dr.id as string)}
-                      style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid #33415544", background: "transparent", color: "#64748b", fontSize: 11, cursor: "pointer" }}>
-                      Delete
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
 
         {/* ── Load Messages ── */}
