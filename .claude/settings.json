@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cmd=$(jq -r '.tool_input.command // \"\"' 2>/dev/null); if echo \"$cmd\" | grep -qE 'git (commit|push)'; then echo '{\"hookSpecificOutput\": {\"hookEventName\": \"PostToolUse\", \"additionalContext\": \"REMINDER: You just committed/pushed code. Before this session ends, check if .claude/map.md needs updating to reflect any component, route, API endpoint, DB table, or business logic changes made in this flow. Update the Last updated date and all relevant feature sections.\"}}'; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
