@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { updateInvoice, listInvoiceDocuments } from "../services/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { updateInvoice, listInvoiceDocuments, uploadInvoiceFileDirect } from "../services/api";
 import PaperworkRequestModal from "./PaperworkRequestModal";
-import { CircleCheck, FileText, Folder, Image, X } from "./icons";
+import { CircleCheck, FileText, Folder, Image, Upload, X } from "./icons";
 
 type Invoice = Record<string, unknown>;
 type Carrier = { id: string; legal_name: string };
@@ -64,6 +64,12 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // ── Direct upload state ──
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadDocType, setUploadDocType] = useState("BOL");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   const invoiceId = invoice.id as string;
   const displayNumber = (invoice.invoice_number as string) || invoiceId.slice(0, 8);
 
@@ -106,6 +112,22 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     });
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    const res = await uploadInvoiceFileDirect(invoiceId, file, uploadDocType);
+    setUploading(false);
+    if (res.error) {
+      setUploadError(res.error);
+    } else {
+      void fetchDocs();
+    }
+    // Reset so the same file can be re-selected if needed
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const docsBadge = documents.length > 0 ? documents.length : null;
@@ -211,12 +233,40 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
           {/* ── Documents tab ── */}
           {activeTab === "documents" && (
             <div>
-              {/* Request paperwork button */}
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-                <button type="button" onClick={() => setShowRequestModal(true)} style={btnAmberStyle}>
-                  + Request Paperwork
+              {/* Upload toolbar */}
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+                <select
+                  value={uploadDocType}
+                  onChange={(e) => setUploadDocType(e.target.value)}
+                  style={{ ...inpStyle, width: "auto", fontSize: 13, padding: "6px 10px" }}
+                >
+                  {Object.entries(DOC_LABELS).map(([v, l]) => (
+                    <option key={v} value={v}>{l}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  style={{ ...btnAmberStyle, display: "flex", alignItems: "center", gap: 6, opacity: uploading ? 0.6 : 1 }}
+                >
+                  <Upload size={14} />
+                  {uploading ? "Uploading…" : "Upload File"}
                 </button>
+                <button type="button" onClick={() => setShowRequestModal(true)} style={{ ...btnGhostStyle, marginLeft: "auto" }}>
+                  + Request from Driver
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                  style={{ display: "none" }}
+                  onChange={handleFileSelected}
+                />
               </div>
+              {uploadError && (
+                <p style={{ color: "var(--red)", fontSize: 12, marginBottom: 12 }}>{uploadError}</p>
+              )}
 
               {loadingDocs ? (
                 <p style={{ color: "var(--mist)", fontSize: 13, textAlign: "center", padding: "24px 0" }}>Loading…</p>

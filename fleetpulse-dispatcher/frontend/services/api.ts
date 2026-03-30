@@ -413,3 +413,19 @@ export async function uploadInvoiceFile(token: string, file: File, docType: stri
 export async function listInvoiceDocuments(invoiceId: string) {
   return apiFetch(`/paperwork/invoices/${encodeURIComponent(invoiceId)}/documents`);
 }
+
+export async function uploadInvoiceFileDirect(invoiceId: string, file: File, docType: string) {
+  const token = getToken();
+  const base = process.env.NEXT_PUBLIC_API_BASE ?? "";
+  const form = new FormData();
+  form.append("file", file);
+  form.append("doc_type", docType);
+  const res = await fetch(`${base}/paperwork/invoices/${encodeURIComponent(invoiceId)}/files`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  const json = await res.json().catch(() => ({ error: "Invalid response" }));
+  if (!res.ok) return { data: null, error: json.detail ?? json.error ?? "Upload failed" };
+  return json;
+}
