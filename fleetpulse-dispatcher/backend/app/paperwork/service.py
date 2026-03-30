@@ -206,6 +206,49 @@ class PaperworkService:
 
         return {"documents": documents, "requests": requests}
 
+    def upload_file_direct(
+        self,
+        invoice_id: str,
+        org_id: str,
+        doc_type: str,
+        filename: str,
+        file_bytes: bytes,
+        content_type: str,
+    ) -> dict:
+        """Direct dispatcher upload — no magic-link token required."""
+        sb = get_supabase()
+
+        safe_name = filename.replace("/", "_").replace("..", "_")
+        storage_path = f"{org_id}/{invoice_id}/direct/{safe_name}"
+
+        try:
+            sb.storage.from_(STORAGE_BUCKET).upload(
+                storage_path,
+                file_bytes,
+                file_options={"content-type": content_type, "upsert": "true"},
+            )
+        except Exception as exc:
+            logger.error("Storage upload failed: %s", exc)
+            raise RuntimeError(f"File upload to storage failed: {exc}") from exc
+
+        doc_row = {
+            "id": str(uuid4()),
+            "organization_id": org_id,
+            "invoice_id": invoice_id,
+            "doc_type": doc_type,
+            "file_name": safe_name,
+            "file_url": storage_path,
+            "file_size": len(file_bytes),
+        }
+        try:
+            result = sb.table("invoice_documents").insert(doc_row).execute()
+            doc = result.data[0] if result.data else doc_row
+        except Exception as exc:
+            logger.error("Failed to persist invoice_documents record: %s", exc)
+            raise RuntimeError(f"Could not save document record: {exc}") from exc
+
+        return doc
+
     # ── private ───────────────────────────────────────────────────────────────
 
     def _maybe_fulfill_request(self, req: dict, sb) -> None:

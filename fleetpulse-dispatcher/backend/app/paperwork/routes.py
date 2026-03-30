@@ -131,6 +131,52 @@ async def upload_document(
     })
 
 
+# ── POST /paperwork/invoices/{invoice_id}/files ── (dispatcher upload) ────────
+
+@router.post("/invoices/{invoice_id}/files", status_code=201)
+async def upload_document_direct(
+    invoice_id: str,
+    file: UploadFile = File(...),
+    doc_type: str = Form(...),
+    user: CurrentUser = Depends(require_dispatcher),
+) -> ResponseEnvelope:
+    if doc_type not in VALID_DOC_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid doc_type '{doc_type}'. Valid: {', '.join(sorted(VALID_DOC_TYPES))}",
+        )
+
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_FILE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="File exceeds 20 MB limit",
+        )
+    if not file_bytes:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file")
+
+    try:
+        doc = _service.upload_file_direct(
+            invoice_id=invoice_id,
+            org_id=user.organization_id,
+            doc_type=doc_type,
+            filename=file.filename or "upload",
+            file_bytes=file_bytes,
+            content_type=file.content_type or "application/octet-stream",
+        )
+    except Exception as exc:
+        logger.exception("Direct file upload failed")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
+
+    return ok({
+        "document_id": doc.get("id"),
+        "doc_type": doc.get("doc_type"),
+        "file_name": doc.get("file_name"),
+        "file_url": doc.get("file_url"),
+        "uploaded_at": doc.get("uploaded_at"),
+    })
+
+
 # ── GET /paperwork/invoices/{invoice_id}/documents ── (auth required) ─────────
 
 @router.get("/invoices/{invoice_id}/documents")
