@@ -42,6 +42,12 @@ export default function CarrierRosterPage() {
   const [quickInviteLoading, setQuickInviteLoading] = useState(false);
   const [showComplianceModal, setShowComplianceModal] = useState(false);
 
+  // Compliance docs and pending actions for selected carrier
+  const [complianceDocs, setComplianceDocs] = useState<Carrier[]>([]);
+  const [complianceDocsLoading, setComplianceDocsLoading] = useState(false);
+  const [pendingActions, setPendingActions] = useState<Carrier[]>([]);
+  const [pendingActionsLoading, setPendingActionsLoading] = useState(false);
+
   // Compliance doc edit/delete state
   const [editingCompDocId, setEditingCompDocId] = useState<string | null>(null);
   const [editCompDocType, setEditCompDocType] = useState("");
@@ -53,6 +59,27 @@ export default function CarrierRosterPage() {
   useEffect(() => {
     setView(loadRosterViewPreference());
   }, []);
+
+  // Load compliance docs and pending actions when a carrier is selected
+  useEffect(() => {
+    if (!selectedCarrier?.id) {
+      setComplianceDocs([]);
+      setPendingActions([]);
+      return;
+    }
+    const carrierId = selectedCarrier.id as string;
+    setComplianceDocsLoading(true);
+    listComplianceDocs(carrierId)
+      .then((res) => setComplianceDocs((res.data as Carrier[]) || []))
+      .catch(() => setComplianceDocs([]))
+      .finally(() => setComplianceDocsLoading(false));
+
+    setPendingActionsLoading(true);
+    listPendingActions(carrierId)
+      .then((res) => setPendingActions((res.data as Carrier[]) || []))
+      .catch(() => setPendingActions([]))
+      .finally(() => setPendingActionsLoading(false));
+  }, [selectedCarrier?.id]);
 
   // Escape key to close detail drawer
   useEffect(() => {
