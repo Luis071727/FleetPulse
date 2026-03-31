@@ -9,12 +9,14 @@ import {
   saveRosterViewPreference,
   listComplianceDocs,
   listPendingActions,
+  updateComplianceDoc,
+  deleteComplianceDoc,
   type RosterView,
 } from "../../../services/api";
 import AddCarrierModal from "../../../components/AddCarrierModal";
 import DetailDrawer from "../../../components/DetailDrawer";
 import LogLoadModal from "../../../components/LogLoadModal";
-import { X } from "../../../components/icons";
+import { Pencil, Trash2, X } from "../../../components/icons";
 
 type Carrier = Record<string, unknown>;
 
@@ -43,6 +45,14 @@ export default function CarrierRosterPage() {
   const [complianceDocsLoading, setComplianceDocsLoading] = useState(false);
   const [pendingActions, setPendingActions] = useState<Carrier[]>([]);
   const [pendingActionsLoading, setPendingActionsLoading] = useState(false);
+
+  // Compliance doc edit/delete state
+  const [editingCompDocId, setEditingCompDocId] = useState<string | null>(null);
+  const [editCompDocType, setEditCompDocType] = useState("");
+  const [editCompIssuedAt, setEditCompIssuedAt] = useState("");
+  const [editCompExpiresAt, setEditCompExpiresAt] = useState("");
+  const [savingCompDoc, setSavingCompDoc] = useState(false);
+  const [deletingCompDocId, setDeletingCompDocId] = useState<string | null>(null);
 
   useEffect(() => {
     setView(loadRosterViewPreference());
@@ -188,6 +198,45 @@ export default function CarrierRosterPage() {
     if (s === "idle") return "var(--amber)";
     if (s === "issues") return "var(--red)";
     return "var(--mist)";
+  };
+
+  const COMPLIANCE_DOC_LABELS: Record<string, string> = {
+    INSURANCE: "Insurance", CDL: "CDL", REGISTRATION: "Registration", INSPECTION: "Inspection", OTHER: "Other",
+  };
+
+  const startEditCompDoc = (doc: Carrier) => {
+    setEditingCompDocId(doc.id as string);
+    setEditCompDocType(doc.doc_type as string || "OTHER");
+    setEditCompIssuedAt(doc.issued_at as string || "");
+    setEditCompExpiresAt(doc.expires_at as string || "");
+  };
+
+  const handleSaveCompDoc = async () => {
+    if (!editingCompDocId || !selectedCarrier?.id) return;
+    setSavingCompDoc(true);
+    const current = complianceDocs.find((d) => d.id === editingCompDocId);
+    const updates: Record<string, string | null> = {};
+    if (editCompDocType && editCompDocType !== current?.doc_type) updates.doc_type = editCompDocType;
+    if (editCompIssuedAt !== (current?.issued_at || "")) updates.issued_at = editCompIssuedAt || null;
+    if (editCompExpiresAt !== (current?.expires_at || "")) updates.expires_at = editCompExpiresAt || null;
+    if (Object.keys(updates).length > 0) {
+      await updateComplianceDoc(selectedCarrier.id as string, editingCompDocId, updates);
+    }
+    setSavingCompDoc(false);
+    setEditingCompDocId(null);
+    listComplianceDocs(selectedCarrier.id as string)
+      .then((res) => setComplianceDocs((res.data as Carrier[]) || []))
+      .catch(() => {});
+  };
+
+  const handleDeleteCompDoc = async (docId: string) => {
+    if (!selectedCarrier?.id) return;
+    setDeletingCompDocId(docId);
+    await deleteComplianceDoc(selectedCarrier.id as string, docId);
+    setDeletingCompDocId(null);
+    listComplianceDocs(selectedCarrier.id as string)
+      .then((res) => setComplianceDocs((res.data as Carrier[]) || []))
+      .catch(() => {});
   };
 
   const uninvitedCount = carriers.filter((c) => !c.portal_status || c.portal_status === "not_invited").length;
@@ -442,15 +491,55 @@ export default function CarrierRosterPage() {
                     else effectiveStatus = "active";
                   }
                   const statusCol = effectiveStatus === "active" ? "var(--green)" : effectiveStatus === "expiring_soon" ? "var(--amber)" : effectiveStatus === "expired" ? "var(--red)" : "var(--mist)";
+                  const docId = doc.id as string;
                   return (
-                    <div key={doc.id as string} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 6, background: "var(--border)", border: "1px solid var(--border)" }}>
-                      <span style={{ flex: 1, fontSize: 13, color: "var(--white)" }}>{(doc.doc_type as string) || "—"}</span>
-                      <span style={{ fontSize: 12, color: "var(--mist)" }}>
-                        {doc.expires_at ? new Date(doc.expires_at as string).toLocaleDateString() : "—"}
-                      </span>
-                      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, fontWeight: 600, background: `${statusCol}22`, color: statusCol, textTransform: "uppercase", whiteSpace: "nowrap" }}>
-                        {effectiveStatus.replace("_", " ")}
-                      </span>
+                    <div key={docId} style={{ borderRadius: 6, background: "var(--border)", border: "1px solid var(--border)" }}>
+                      {editingCompDocId === docId ? (
+                        <div style={{ padding: "8px 10px" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 8 }}>
+                            <div>
+                              <label style={{ fontSize: 10, color: "var(--mist)", display: "block", marginBottom: 2 }}>Type</label>
+                              <select value={editCompDocType} onChange={(e) => setEditCompDocType(e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: "3px 6px" }}>
+                                {Object.entries(COMPLIANCE_DOC_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label style={{ fontSize: 10, color: "var(--mist)", display: "block", marginBottom: 2 }}>Issued</label>
+                              <input type="date" value={editCompIssuedAt} onChange={(e) => setEditCompIssuedAt(e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: "3px 6px" }} />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: 10, color: "var(--mist)", display: "block", marginBottom: 2 }}>Expires</label>
+                              <input type="date" value={editCompExpiresAt} onChange={(e) => setEditCompExpiresAt(e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: "3px 6px" }} />
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                            <button type="button" onClick={() => setEditingCompDocId(null)} style={{ padding: "3px 10px", borderRadius: 4, border: "1px solid var(--border)", background: "transparent", color: "var(--mist)", fontSize: 11, cursor: "pointer" }}>Cancel</button>
+                            <button type="button" onClick={handleSaveCompDoc} disabled={savingCompDoc} style={{ padding: "3px 10px", borderRadius: 4, border: "none", background: "var(--amber)", color: "#000", fontSize: 11, cursor: "pointer", opacity: savingCompDoc ? 0.6 : 1, fontWeight: 600 }}>
+                              {savingCompDoc ? "Saving…" : "Save"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px" }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: 13, color: "var(--white)" }}>{COMPLIANCE_DOC_LABELS[doc.doc_type as string] || (doc.doc_type as string) || "—"}</span>
+                            <p style={{ margin: "1px 0 0", fontSize: 10, color: "var(--mist)" }}>
+                              {doc.issued_at ? `Issued ${new Date(doc.issued_at as string).toLocaleDateString()}` : ""}
+                              {doc.issued_at && doc.expires_at ? " · " : ""}
+                              {doc.expires_at ? `Exp ${new Date(doc.expires_at as string).toLocaleDateString()}` : "No expiry"}
+                            </p>
+                          </div>
+                          <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, fontWeight: 600, background: `${statusCol}22`, color: statusCol, textTransform: "uppercase" as const, whiteSpace: "nowrap" }}>
+                            {effectiveStatus.replace("_", " ")}
+                          </span>
+                          <button type="button" onClick={() => startEditCompDoc(doc)} title="Edit" style={{ background: "none", border: "none", color: "var(--mist)", cursor: "pointer", padding: 3, display: "flex", alignItems: "center" }}>
+                            <Pencil size={13} />
+                          </button>
+                          <button type="button" onClick={() => handleDeleteCompDoc(docId)} disabled={deletingCompDocId === docId} title="Delete" style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 3, display: "flex", alignItems: "center", opacity: deletingCompDocId === docId ? 0.5 : 1 }}>
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

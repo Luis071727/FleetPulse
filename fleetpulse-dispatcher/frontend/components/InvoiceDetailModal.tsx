@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { updateInvoice, listInvoiceDocuments, uploadInvoiceFileDirect } from "../services/api";
+import { updateInvoice, listInvoiceDocuments, uploadInvoiceFileDirect, updateInvoiceDocument, deleteInvoiceDocument } from "../services/api";
 import PaperworkRequestModal from "./PaperworkRequestModal";
-import { CircleCheck, FileText, Folder, Image, Upload, X } from "./icons";
+import { CircleCheck, FileText, Folder, Image, Pencil, Trash2, Upload, X } from "./icons";
 
 type Invoice = Record<string, unknown>;
 type Carrier = { id: string; legal_name: string };
@@ -14,6 +14,8 @@ type InvoiceDocument = {
   file_name: string;
   file_url: string;
   uploaded_at: string;
+  issued_at?: string | null;
+  expires_at?: string | null;
 };
 
 type PaperworkRequest = {
@@ -69,6 +71,14 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
   const [uploadDocType, setUploadDocType] = useState("BOL");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // ── Document edit/delete state ──
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [editDocType, setEditDocType] = useState("");
+  const [editIssuedAt, setEditIssuedAt] = useState("");
+  const [editExpiresAt, setEditExpiresAt] = useState("");
+  const [savingDoc, setSavingDoc] = useState(false);
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
 
   const invoiceId = invoice.id as string;
   const displayNumber = (invoice.invoice_number as string) || invoiceId.slice(0, 8);
@@ -128,6 +138,36 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
     }
     // Reset so the same file can be re-selected if needed
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const startEditDoc = (doc: InvoiceDocument) => {
+    setEditingDocId(doc.id);
+    setEditDocType(doc.doc_type);
+    setEditIssuedAt(doc.issued_at || "");
+    setEditExpiresAt(doc.expires_at || "");
+  };
+
+  const handleSaveDoc = async () => {
+    if (!editingDocId) return;
+    setSavingDoc(true);
+    const updates: Record<string, string | null> = {};
+    const current = documents.find((d) => d.id === editingDocId);
+    if (editDocType && editDocType !== current?.doc_type) updates.doc_type = editDocType;
+    if (editIssuedAt !== (current?.issued_at || "")) updates.issued_at = editIssuedAt || null;
+    if (editExpiresAt !== (current?.expires_at || "")) updates.expires_at = editExpiresAt || null;
+    if (Object.keys(updates).length > 0) {
+      await updateInvoiceDocument(invoiceId, editingDocId, updates);
+    }
+    setSavingDoc(false);
+    setEditingDocId(null);
+    void fetchDocs();
+  };
+
+  const handleDeleteDoc = async (docId: string) => {
+    setDeletingDocId(docId);
+    await deleteInvoiceDocument(invoiceId, docId);
+    setDeletingDocId(null);
+    void fetchDocs();
   };
 
   const docsBadge = documents.length > 0 ? documents.length : null;
@@ -278,32 +318,59 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
                       <SectionHead>Uploaded Documents ({documents.length})</SectionHead>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         {documents.map((doc) => (
-                          <a
-                            key={doc.id}
-                            href={doc.file_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              display: "flex", alignItems: "center", gap: 12, padding: "10px 14px",
-                              background: "#1e293b", borderRadius: 8, textDecoration: "none", color: "inherit",
-                              border: "1px solid var(--border)", transition: "border-color 0.15s",
-                            }}
-                          >
-                            {doc.file_name.match(/\.(pdf)$/i)
-                              ? <FileText size={24} style={{ flexShrink: 0, color: "#94a3b8" }} />
-                              : <Image size={24} style={{ flexShrink: 0, color: "#94a3b8" }} />}
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ margin: 0, fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {doc.file_name}
-                              </p>
-                              <p style={{ margin: "2px 0 0", fontSize: 11, color: "var(--mist)" }}>
-                                {new Date(doc.uploaded_at).toLocaleDateString()} · {DOC_LABELS[doc.doc_type] || doc.doc_type}
-                              </p>
-                            </div>
-                            <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "#1e3a5f", color: "#93c5fd", fontWeight: 700, whiteSpace: "nowrap" }}>
-                              {DOC_LABELS[doc.doc_type] || doc.doc_type}
-                            </span>
-                          </a>
+                          <div key={doc.id} style={{ background: "#1e293b", borderRadius: 8, border: "1px solid var(--border)" }}>
+                            {editingDocId === doc.id ? (
+                              <div style={{ padding: "10px 14px" }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+                                  <div>
+                                    <label style={{ ...lblStyle, fontSize: 10 }}>Type</label>
+                                    <select value={editDocType} onChange={(e) => setEditDocType(e.target.value)} style={{ ...inpStyle, fontSize: 12, padding: "4px 8px" }}>
+                                      {Object.entries(DOC_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label style={{ ...lblStyle, fontSize: 10 }}>Issued Date</label>
+                                    <input type="date" value={editIssuedAt} onChange={(e) => setEditIssuedAt(e.target.value)} style={{ ...inpStyle, fontSize: 12, padding: "4px 8px" }} />
+                                  </div>
+                                  <div>
+                                    <label style={{ ...lblStyle, fontSize: 10 }}>Expires Date</label>
+                                    <input type="date" value={editExpiresAt} onChange={(e) => setEditExpiresAt(e.target.value)} style={{ ...inpStyle, fontSize: 12, padding: "4px 8px" }} />
+                                  </div>
+                                </div>
+                                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                                  <button type="button" onClick={() => setEditingDocId(null)} style={{ ...btnGhostStyle, fontSize: 12, padding: "4px 10px" }}>Cancel</button>
+                                  <button type="button" onClick={handleSaveDoc} disabled={savingDoc} style={{ ...btnAmberStyle, fontSize: 12, padding: "4px 10px", opacity: savingDoc ? 0.6 : 1 }}>
+                                    {savingDoc ? "Saving…" : "Save"}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px" }}>
+                                <a href={doc.file_url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, textDecoration: "none", color: "inherit" }}>
+                                  {doc.file_name.match(/\.(pdf)$/i)
+                                    ? <FileText size={22} style={{ flexShrink: 0, color: "#94a3b8" }} />
+                                    : <Image size={22} style={{ flexShrink: 0, color: "#94a3b8" }} />}
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.file_name}</p>
+                                    <p style={{ margin: "2px 0 0", fontSize: 11, color: "var(--mist)" }}>
+                                      {new Date(doc.uploaded_at).toLocaleDateString()}
+                                      {doc.issued_at ? ` · Issued ${new Date(doc.issued_at).toLocaleDateString()}` : ""}
+                                      {doc.expires_at ? ` · Exp ${new Date(doc.expires_at).toLocaleDateString()}` : ""}
+                                    </p>
+                                  </div>
+                                  <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "#1e3a5f", color: "#93c5fd", fontWeight: 700, whiteSpace: "nowrap" }}>
+                                    {DOC_LABELS[doc.doc_type] || doc.doc_type}
+                                  </span>
+                                </a>
+                                <button type="button" onClick={() => startEditDoc(doc)} title="Edit" style={{ background: "none", border: "none", color: "var(--mist)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}>
+                                  <Pencil size={14} />
+                                </button>
+                                <button type="button" onClick={() => handleDeleteDoc(doc.id)} disabled={deletingDocId === doc.id} title="Delete" style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", opacity: deletingDocId === doc.id ? 0.5 : 1 }}>
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         ))}
                       </div>
                     </div>

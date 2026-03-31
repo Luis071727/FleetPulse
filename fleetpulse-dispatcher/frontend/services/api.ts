@@ -364,6 +364,23 @@ export async function listComplianceDocs(carrierId: string) {
   return apiFetch(`/carriers/${encodeURIComponent(carrierId)}/compliance-documents`);
 }
 
+export async function updateComplianceDoc(
+  carrierId: string,
+  docId: string,
+  updates: { doc_type?: string; issued_at?: string | null; expires_at?: string | null },
+) {
+  return apiFetch(`/carriers/${encodeURIComponent(carrierId)}/compliance-documents/${encodeURIComponent(docId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteComplianceDoc(carrierId: string, docId: string) {
+  return apiFetch(`/carriers/${encodeURIComponent(carrierId)}/compliance-documents/${encodeURIComponent(docId)}`, {
+    method: "DELETE",
+  });
+}
+
 // ── Pending Actions ──
 
 export async function listPendingActions(carrierId: string) {
@@ -412,6 +429,23 @@ export async function uploadInvoiceFile(token: string, file: File, docType: stri
 
 export async function listInvoiceDocuments(invoiceId: string) {
   return apiFetch(`/paperwork/invoices/${encodeURIComponent(invoiceId)}/documents`);
+}
+
+export async function updateInvoiceDocument(
+  invoiceId: string,
+  docId: string,
+  updates: { doc_type?: string; issued_at?: string | null; expires_at?: string | null },
+) {
+  return apiFetch(`/paperwork/invoices/${encodeURIComponent(invoiceId)}/documents/${encodeURIComponent(docId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteInvoiceDocument(invoiceId: string, docId: string) {
+  return apiFetch(`/paperwork/invoices/${encodeURIComponent(invoiceId)}/documents/${encodeURIComponent(docId)}`, {
+    method: "DELETE",
+  });
 }
 
 export async function uploadInvoiceFileDirect(invoiceId: string, file: File, docType: string) {
