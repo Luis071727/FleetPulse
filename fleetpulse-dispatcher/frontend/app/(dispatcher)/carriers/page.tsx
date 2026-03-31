@@ -7,17 +7,11 @@ import {
   inviteCarrier,
   loadRosterViewPreference,
   saveRosterViewPreference,
-  listComplianceDocs,
-  listPendingActions,
-  updateComplianceDoc,
-  deleteComplianceDoc,
   type RosterView,
 } from "../../../services/api";
 import AddCarrierModal from "../../../components/AddCarrierModal";
-import CarrierComplianceModal from "../../../components/CarrierComplianceModal";
-import DetailDrawer from "../../../components/DetailDrawer";
-import LogLoadModal from "../../../components/LogLoadModal";
-import { Pencil, Trash2, X } from "../../../components/icons";
+import CarrierDetailModal from "../../../components/CarrierDetailModal";
+import { X } from "../../../components/icons";
 
 type Carrier = Record<string, unknown>;
 
@@ -33,53 +27,14 @@ export default function CarrierRosterPage() {
   const [loading, setLoading] = useState(true);
   const [selectedCarrier, setSelectedCarrier] = useState<Carrier | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showLogLoad, setShowLogLoad] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteMsg, setInviteMsg] = useState("");
   const [quickInviteCarrier, setQuickInviteCarrier] = useState<Carrier | null>(null);
   const [quickInviteEmail, setQuickInviteEmail] = useState("");
   const [quickInviteMsg, setQuickInviteMsg] = useState("");
   const [quickInviteLoading, setQuickInviteLoading] = useState(false);
-  const [showComplianceModal, setShowComplianceModal] = useState(false);
-
-  // Compliance docs and pending actions for selected carrier
-  const [complianceDocs, setComplianceDocs] = useState<Carrier[]>([]);
-  const [complianceDocsLoading, setComplianceDocsLoading] = useState(false);
-  const [pendingActions, setPendingActions] = useState<Carrier[]>([]);
-  const [pendingActionsLoading, setPendingActionsLoading] = useState(false);
-
-  // Compliance doc edit/delete state
-  const [editingCompDocId, setEditingCompDocId] = useState<string | null>(null);
-  const [editCompDocType, setEditCompDocType] = useState("");
-  const [editCompIssuedAt, setEditCompIssuedAt] = useState("");
-  const [editCompExpiresAt, setEditCompExpiresAt] = useState("");
-  const [savingCompDoc, setSavingCompDoc] = useState(false);
-  const [deletingCompDocId, setDeletingCompDocId] = useState<string | null>(null);
 
   useEffect(() => {
     setView(loadRosterViewPreference());
   }, []);
-
-  // Load compliance docs and pending actions when a carrier is selected
-  useEffect(() => {
-    if (!selectedCarrier?.id) {
-      setComplianceDocs([]);
-      setPendingActions([]);
-      return;
-    }
-    const carrierId = selectedCarrier.id as string;
-    setComplianceDocsLoading(true);
-    listComplianceDocs(carrierId)
-      .then((res) => setComplianceDocs((res.data as Carrier[]) || []))
-      .catch(() => setComplianceDocs([]))
-      .finally(() => setComplianceDocsLoading(false));
-
-    setPendingActionsLoading(true);
-    listPendingActions(carrierId)
-      .then((res) => setPendingActions((res.data as Carrier[]) || []))
-      .catch(() => setPendingActions([]))
-      .finally(() => setPendingActionsLoading(false));
-  }, [selectedCarrier?.id]);
 
   // Escape key to close detail drawer
   useEffect(() => {
@@ -148,17 +103,6 @@ export default function CarrierRosterPage() {
     saveRosterViewPreference(v);
   };
 
-  const handleInvite = async (carrierId: string) => {
-    if (!inviteEmail) return;
-    const res = await inviteCarrier(carrierId, inviteEmail);
-    if (res.error) setInviteMsg(res.error);
-    else {
-      setInviteMsg("Invite sent!");
-      setInviteEmail("");
-      fetchCarriers();
-    }
-  };
-
   const openQuickInvite = (carrier: Carrier) => {
     setQuickInviteCarrier(carrier);
     setQuickInviteEmail(String(carrier.contact_email || carrier.email || ""));
@@ -200,45 +144,6 @@ export default function CarrierRosterPage() {
     if (s === "idle") return "var(--amber)";
     if (s === "issues") return "var(--red)";
     return "var(--mist)";
-  };
-
-  const COMPLIANCE_DOC_LABELS: Record<string, string> = {
-    INSURANCE: "Insurance", CDL: "CDL", REGISTRATION: "Registration", INSPECTION: "Inspection", OTHER: "Other",
-  };
-
-  const startEditCompDoc = (doc: Carrier) => {
-    setEditingCompDocId(doc.id as string);
-    setEditCompDocType(doc.doc_type as string || "OTHER");
-    setEditCompIssuedAt(doc.issued_at as string || "");
-    setEditCompExpiresAt(doc.expires_at as string || "");
-  };
-
-  const handleSaveCompDoc = async () => {
-    if (!editingCompDocId || !selectedCarrier?.id) return;
-    setSavingCompDoc(true);
-    const current = complianceDocs.find((d) => d.id === editingCompDocId);
-    const updates: Record<string, string | null> = {};
-    if (editCompDocType && editCompDocType !== current?.doc_type) updates.doc_type = editCompDocType;
-    if (editCompIssuedAt !== (current?.issued_at || "")) updates.issued_at = editCompIssuedAt || null;
-    if (editCompExpiresAt !== (current?.expires_at || "")) updates.expires_at = editCompExpiresAt || null;
-    if (Object.keys(updates).length > 0) {
-      await updateComplianceDoc(selectedCarrier.id as string, editingCompDocId, updates);
-    }
-    setSavingCompDoc(false);
-    setEditingCompDocId(null);
-    listComplianceDocs(selectedCarrier.id as string)
-      .then((res) => setComplianceDocs((res.data as Carrier[]) || []))
-      .catch(() => {});
-  };
-
-  const handleDeleteCompDoc = async (docId: string) => {
-    if (!selectedCarrier?.id) return;
-    setDeletingCompDocId(docId);
-    await deleteComplianceDoc(selectedCarrier.id as string, docId);
-    setDeletingCompDocId(null);
-    listComplianceDocs(selectedCarrier.id as string)
-      .then((res) => setComplianceDocs((res.data as Carrier[]) || []))
-      .catch(() => {});
   };
 
   const uninvitedCount = carriers.filter((c) => !c.portal_status || c.portal_status === "not_invited").length;
@@ -425,170 +330,13 @@ export default function CarrierRosterPage() {
         </div>
       )}
 
-      {/* Detail Drawer */}
+      {/* Carrier Detail Modal */}
       {selectedCarrier && (
-        <>
-        <div onClick={() => { setSelectedCarrier(null); setInviteMsg(""); clearCarrierQuery(); }}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 49 }} />
-        <div className="fp-drawer" style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: 400, background: "var(--surface)",
-          borderLeft: "1px solid var(--border)", padding: 20, overflowY: "auto", zIndex: 50 }}>
-          <button type="button" onClick={() => { setSelectedCarrier(null); setInviteMsg(""); clearCarrierQuery(); }}
-            style={{ float: "right", background: "none", border: "none", color: "var(--mist)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center" }}>
-            <X size={18} />
-          </button>
-          <DetailDrawer
-            carrierName={selectedCarrier.legal_name as string}
-            carrier={selectedCarrier}
-            onLogLoad={() => setShowLogLoad(true)}
-            onCarrierUpdated={() => { fetchCarriers(); }}
-          />
-          {/* Invite section */}
-          {(selectedCarrier.portal_status === "not_invited" || !selectedCarrier.portal_status) && (
-            <div style={{ marginTop: 16, padding: 14, background: "var(--border)", borderRadius: 8 }}>
-              <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 8px" }}>Invite to Portal</p>
-              <input
-                placeholder="carrier@email.com"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                style={inputStyle}
-              />
-              <button
-                type="button"
-                onClick={() => handleInvite(selectedCarrier.id as string)}
-                style={{ ...btnPrimary, marginTop: 8, width: "100%" }}
-              >
-                Send Portal Invite
-              </button>
-              {inviteMsg && <p style={{ fontSize: 12, color: inviteMsg.includes("error") ? "var(--red)" : "var(--green)", marginTop: 4 }}>{inviteMsg}</p>}
-            </div>
-          )}
-          {/* Action buttons */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 16 }}>
-            {selectedCarrier.portal_status === "active" && <button type="button" style={btnOutline}>Preview Carrier Portal</button>}
-            {selectedCarrier.portal_status === "invited" && (
-              <button type="button" onClick={() => openQuickInvite(selectedCarrier)} style={btnOutline}>
-                Resend Invite
-              </button>
-            )}
-          </div>
-
-          {/* ── Compliance Documents ── */}
-          <div style={{ marginTop: 20, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <p style={{ fontSize: 13, fontWeight: 600, margin: 0, color: "var(--white)" }}>Compliance Documents</p>
-              <button
-                type="button"
-                onClick={() => setShowComplianceModal(true)}
-                style={{ padding: "4px 12px", borderRadius: 6, border: "none", background: "var(--amber)", color: "#000", fontSize: 12, cursor: "pointer", fontWeight: 700 }}
-              >
-                Manage Documents
-              </button>
-            </div>
-            {complianceDocsLoading ? (
-              <p style={{ fontSize: 12, color: "var(--mist)" }}>Loading…</p>
-            ) : complianceDocs.length === 0 ? (
-              <p style={{ fontSize: 12, color: "var(--mist)" }}>No compliance documents on file.</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {complianceDocs.map((doc) => {
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  let effectiveStatus = (doc.status as string) || "pending";
-                  if (doc.expires_at) {
-                    const exp = new Date(doc.expires_at as string);
-                    const daysUntil = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                    if (daysUntil < 0) effectiveStatus = "expired";
-                    else if (daysUntil <= 30) effectiveStatus = "expiring_soon";
-                    else effectiveStatus = "active";
-                  }
-                  const statusCol = effectiveStatus === "active" ? "var(--green)" : effectiveStatus === "expiring_soon" ? "var(--amber)" : effectiveStatus === "expired" ? "var(--red)" : "var(--mist)";
-                  const docId = doc.id as string;
-                  return (
-                    <div key={docId} style={{ borderRadius: 6, background: "var(--border)", border: "1px solid var(--border)" }}>
-                      {editingCompDocId === docId ? (
-                        <div style={{ padding: "8px 10px" }}>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 8 }}>
-                            <div>
-                              <label style={{ fontSize: 10, color: "var(--mist)", display: "block", marginBottom: 2 }}>Type</label>
-                              <select value={editCompDocType} onChange={(e) => setEditCompDocType(e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: "3px 6px" }}>
-                                {Object.entries(COMPLIANCE_DOC_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                              </select>
-                            </div>
-                            <div>
-                              <label style={{ fontSize: 10, color: "var(--mist)", display: "block", marginBottom: 2 }}>Issued</label>
-                              <input type="date" value={editCompIssuedAt} onChange={(e) => setEditCompIssuedAt(e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: "3px 6px" }} />
-                            </div>
-                            <div>
-                              <label style={{ fontSize: 10, color: "var(--mist)", display: "block", marginBottom: 2 }}>Expires</label>
-                              <input type="date" value={editCompExpiresAt} onChange={(e) => setEditCompExpiresAt(e.target.value)} style={{ ...inputStyle, fontSize: 11, padding: "3px 6px" }} />
-                            </div>
-                          </div>
-                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                            <button type="button" onClick={() => setEditingCompDocId(null)} style={{ padding: "3px 10px", borderRadius: 4, border: "1px solid var(--border)", background: "transparent", color: "var(--mist)", fontSize: 11, cursor: "pointer" }}>Cancel</button>
-                            <button type="button" onClick={handleSaveCompDoc} disabled={savingCompDoc} style={{ padding: "3px 10px", borderRadius: 4, border: "none", background: "var(--amber)", color: "#000", fontSize: 11, cursor: "pointer", opacity: savingCompDoc ? 0.6 : 1, fontWeight: 600 }}>
-                              {savingCompDoc ? "Saving…" : "Save"}
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px" }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <span style={{ fontSize: 13, color: "var(--white)" }}>{COMPLIANCE_DOC_LABELS[doc.doc_type as string] || (doc.doc_type as string) || "—"}</span>
-                            <p style={{ margin: "1px 0 0", fontSize: 10, color: "var(--mist)" }}>
-                              {doc.issued_at ? `Issued ${new Date(doc.issued_at as string).toLocaleDateString()}` : ""}
-                              {doc.issued_at && doc.expires_at ? " · " : ""}
-                              {doc.expires_at ? `Exp ${new Date(doc.expires_at as string).toLocaleDateString()}` : "No expiry"}
-                            </p>
-                          </div>
-                          <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, fontWeight: 600, background: `${statusCol}22`, color: statusCol, textTransform: "uppercase" as const, whiteSpace: "nowrap" }}>
-                            {effectiveStatus.replace("_", " ")}
-                          </span>
-                          <button type="button" onClick={() => startEditCompDoc(doc)} title="Edit" style={{ background: "none", border: "none", color: "var(--mist)", cursor: "pointer", padding: 3, display: "flex", alignItems: "center" }}>
-                            <Pencil size={13} />
-                          </button>
-                          <button type="button" onClick={() => handleDeleteCompDoc(docId)} disabled={deletingCompDocId === docId} title="Delete" style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 3, display: "flex", alignItems: "center", opacity: deletingCompDocId === docId ? 0.5 : 1 }}>
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* ── Pending Actions ── */}
-          <div style={{ marginTop: 20, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 10px", color: "var(--white)" }}>Pending Actions</p>
-            {pendingActionsLoading ? (
-              <p style={{ fontSize: 12, color: "var(--mist)" }}>Loading…</p>
-            ) : pendingActions.length === 0 ? (
-              <p style={{ fontSize: 12, color: "var(--mist)" }}>No pending actions.</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {pendingActions.map((ld) => (
-                  <div
-                    key={ld.id as string}
-                    onClick={() => { setSelectedCarrier(null); window.location.href = `/loads?loadId=${ld.id as string}`; }}
-                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 6, background: "var(--border)", border: "1px solid var(--border)", cursor: "pointer" }}
-                  >
-                    <span style={{ flex: 1, fontSize: 13, color: "var(--white)" }}>
-                      {(ld.origin as string) || "—"} → {(ld.destination as string) || "—"}
-                    </span>
-                    {ld.rc_reference && (
-                      <span style={{ fontSize: 11, color: "var(--mist)" }}>RC# {ld.rc_reference as string}</span>
-                    )}
-                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 700, background: "#ef444422", color: "var(--red)", whiteSpace: "nowrap" }}>
-                      {String(ld.pending_requests_count || 0)} pending
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-        </>
+        <CarrierDetailModal
+          carrier={selectedCarrier}
+          onClose={() => { setSelectedCarrier(null); clearCarrierQuery(); }}
+          onSaved={() => { fetchCarriers(); setSelectedCarrier(null); clearCarrierQuery(); }}
+        />
       )}
 
       {/* Add Carrier Modal */}
@@ -600,26 +348,6 @@ export default function CarrierRosterPage() {
             <AddCarrierModal onComplete={() => { setShowAddModal(false); fetchCarriers(); }} />
           </div>
         </div>
-      )}
-
-      {/* Log Load Modal */}
-      {showLogLoad && selectedCarrier && (
-        <div style={overlayStyle}>
-          <div className={modalClass} style={modalStyle}>
-            <button type="button" onClick={() => setShowLogLoad(false)}
-              style={{ float: "right", background: "none", border: "none", color: "var(--mist)", cursor: "pointer", display: "flex", alignItems: "center" }}><X size={18} /></button>
-            <LogLoadModal carrierId={selectedCarrier.id as string} onComplete={() => setShowLogLoad(false)} />
-          </div>
-        </div>
-      )}
-
-      {/* Carrier Compliance Modal */}
-      {showComplianceModal && selectedCarrier && (
-        <CarrierComplianceModal
-          carrierId={selectedCarrier.id as string}
-          carrierName={selectedCarrier.legal_name as string}
-          onClose={() => setShowComplianceModal(false)}
-        />
       )}
 
       {quickInviteCarrier && (

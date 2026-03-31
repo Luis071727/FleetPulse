@@ -255,6 +255,42 @@ class CarrierComplianceService:
 
         return {"documents": documents, "requests": requests}
 
+    def update_document(self, doc_id: str, carrier_id: str, org_id: str, updates: dict) -> dict | None:
+        allowed = {"doc_type", "issue_date", "expires_at"}
+        payload = {k: v for k, v in updates.items() if k in allowed}
+        if not payload:
+            return None
+        if "doc_type" in payload and payload["doc_type"] not in VALID_DOC_TYPES:
+            raise ValueError(f"Invalid doc_type: {payload['doc_type']}")
+        sb = get_supabase()
+        try:
+            result = (
+                sb.table("compliance_documents")
+                .update(payload)
+                .eq("id", doc_id)
+                .eq("carrier_id", carrier_id)
+                .execute()
+            )
+            return result.data[0] if result.data else None
+        except Exception as exc:
+            logger.error("Failed to update compliance document %s: %s", doc_id, exc)
+            return None
+
+    def delete_document(self, doc_id: str, carrier_id: str, org_id: str) -> bool:
+        sb = get_supabase()
+        try:
+            result = (
+                sb.table("compliance_documents")
+                .delete()
+                .eq("id", doc_id)
+                .eq("carrier_id", carrier_id)
+                .execute()
+            )
+            return bool(result.data)
+        except Exception as exc:
+            logger.error("Failed to delete compliance document %s: %s", doc_id, exc)
+            return False
+
     # ── private ───────────────────────────────────────────────────────────────
 
     def _maybe_fulfill_request(self, req: dict, sb) -> None:

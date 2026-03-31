@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel
 
 from app.carrier_compliance.service import VALID_DOC_TYPES, CarrierComplianceService
@@ -13,6 +13,12 @@ router = APIRouter(prefix="/carrier-compliance", tags=["carrier-compliance"])
 _service = CarrierComplianceService()
 
 MAX_FILE_BYTES = 20 * 1024 * 1024  # 20 MB
+
+
+class UpdateCarrierDocIn(BaseModel):
+    doc_type: str | None = None
+    issue_date: str | None = None
+    expires_at: str | None = None
 
 
 class CreateCarrierDocRequestIn(BaseModel):
@@ -185,3 +191,38 @@ def list_carrier_documents(
 ) -> ResponseEnvelope:
     result = _service.list_documents(carrier_id=carrier_id, org_id=user.organization_id)
     return ok(result)
+
+
+# ── PATCH /carrier-compliance/carriers/{carrier_id}/documents/{doc_id} ── ────
+
+@router.patch("/carriers/{carrier_id}/documents/{doc_id}")
+def update_carrier_document_record(
+    carrier_id: str,
+    doc_id: str,
+    payload: UpdateCarrierDocIn,
+    user: CurrentUser = Depends(require_dispatcher),
+) -> ResponseEnvelope:
+    updates = payload.model_dump(exclude_none=True)
+    if not updates:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
+    try:
+        doc = _service.update_document(doc_id=doc_id, carrier_id=carrier_id, org_id=user.organization_id, updates=updates)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    return ok(doc)
+
+
+# ── DELETE /carrier-compliance/carriers/{carrier_id}/documents/{doc_id} ── ───
+
+@router.delete("/carriers/{carrier_id}/documents/{doc_id}", status_code=204)
+def delete_carrier_document_record(
+    carrier_id: str,
+    doc_id: str,
+    user: CurrentUser = Depends(require_dispatcher),
+) -> Response:
+    deleted = _service.delete_document(doc_id=doc_id, carrier_id=carrier_id, org_id=user.organization_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    return Response(status_code=204)

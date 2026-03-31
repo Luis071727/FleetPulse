@@ -78,7 +78,7 @@ async function apiFetch<T = unknown>(
   };
 
   const res = await fetch(url, { ...fetchOpts, headers });
-  const json = await res.json();
+  const json = res.status === 204 ? {} : await res.json().catch(() => ({}));
 
   // Global 401 handler — token is stale or missing, redirect to login
   if (res.status === 401) {
@@ -532,4 +532,21 @@ export async function uploadCarrierFileDirect(
 
 export async function listCarrierDocuments(carrierId: string) {
   return apiFetch(`/carrier-compliance/carriers/${encodeURIComponent(carrierId)}/documents`);
+}
+
+export async function updateCarrierDoc(
+  carrierId: string,
+  docId: string,
+  updates: { doc_type?: string; issue_date?: string | null; expires_at?: string | null },
+) {
+  return apiFetch(`/carrier-compliance/carriers/${encodeURIComponent(carrierId)}/documents/${encodeURIComponent(docId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteCarrierDoc(carrierId: string, docId: string) {
+  return apiFetch(`/carrier-compliance/carriers/${encodeURIComponent(carrierId)}/documents/${encodeURIComponent(docId)}`, {
+    method: "DELETE",
+  });
 }

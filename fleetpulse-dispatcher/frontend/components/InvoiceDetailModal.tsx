@@ -148,6 +148,7 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
     setSavingDoc(true);
     const current = documents.find((d) => d.id === editingDocId);
     if (editDocType && editDocType !== current?.doc_type) {
+      setDocuments((prev) => prev.map((d) => d.id === editingDocId ? { ...d, doc_type: editDocType } : d));
       await updateInvoiceDocument(invoiceId, editingDocId, { doc_type: editDocType });
     }
     setSavingDoc(false);
@@ -157,9 +158,9 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
 
   const handleDeleteDoc = async (docId: string) => {
     setDeletingDocId(docId);
+    setDocuments((prev) => prev.filter((d) => d.id !== docId));
     await deleteInvoiceDocument(invoiceId, docId);
     setDeletingDocId(null);
-    void fetchDocs();
   };
 
   const docsBadge = documents.length > 0 ? documents.length : null;
