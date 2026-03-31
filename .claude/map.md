@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-03-31 (CarrierDetailModal)
+Last updated: 2026-03-31 (LoadDetailModal)
 
 ---
 
@@ -73,18 +73,22 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 | Layer | File | Notes |
 |-------|------|-------|
-| Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/loads/page.tsx` | Lists + filters loads |
-| Create modal | `components/LogLoadModal.tsx` | `createLoad()` → POST /loads |
-| Detail drawer | `components/DetailDrawer.tsx` | Shows load detail + AI analysis trigger |
-| AI analysis modal | `components/LoadAnalysisModal.tsx` | Renders GO/PASS/NEGOTIATE result |
-| API calls | `services/api.ts:185–226` | `listLoads`, `getLoad`, `createLoad`, `updateLoad`, `deleteLoad` |
+| Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/loads/page.tsx` | Summary metrics bar, search, sortable table, clickable rows → LoadDetailModal |
+| Create modal | `components/LogLoadModal.tsx` | `createLoad()` → POST /loads; shown in overlay from loads page |
+| **Detail modal** | `components/LoadDetailModal.tsx` | **Tabbed modal** (Load Details / Messages / AI Analysis); replaces old inline EditLoadModal |
+| Details tab | `components/LoadDetailModal.tsx` | Status pill selector, route/broker/financials form, live net profit + margin, Save Changes |
+| Messages tab | `components/LoadDetailModal.tsx` | Carrier↔dispatcher thread; auto-fetches on tab open; send box with Enter support |
+| AI Analysis tab | `components/LoadDetailModal.tsx` | Auto-runs `analyzeLoad` on open; GO/NEGOTIATE/PASS badge, target rate, reasoning, Refresh |
+| API calls | `services/api.ts:185–226` | `listLoads`, `getLoad`, `createLoad`, `updateLoad`, `deleteLoad`, `analyzeLoad`, `listMessages`, `sendMessage` |
 | Backend route | `backend/app/loads/routes.py` | CRUD + document-requests + messages sub-routes |
 | Financials | `backend/app/loads/routes.py:61–65` | `_compute_financials()` — net_profit, rpm, net_rpm |
 | Auto-invoice | `backend/app/loads/routes.py:132–163` | Invoice auto-created on load insert (in-memory + DB) |
 | In-memory store | `backend/app/loads/routes.py:19–21` | `_LOADS`, `_INVOICES` — fallback when RLS blocks |
 | DB table | `loads` | Columns: id, organization_id, carrier_id, broker_id, route, origin/destination, load_rate, miles, fuel_cost, driver_pay, tolls, net_profit, rpm, net_rpm, status, pickup_date, delivery_date, rc_reference, customer_ap_email, deleted_at |
 
-**Load statuses:** `logged` → (update via PATCH) → `in_transit`, `delivered`, `cancelled`
+**Load statuses:** `logged` → `in_transit` → `delivered` / `cancelled` (pill selector in modal + inline dropdown in table)
+
+**Page summary metrics:** total loads, in-transit count, delivered count, avg net RPM — computed client-side from loaded data
 
 **Dependencies:** broker MC → `BrokerService.get_or_create_by_mc()` in `backend/app/brokers/service.py`
 
