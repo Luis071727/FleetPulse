@@ -314,7 +314,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Public upload page | `app/(public)/upload/[token]/page.tsx` | Driver-facing, no auth required |
 | Public layout | `app/(public)/layout.tsx` | Bare `<div>` wrapper — NOT html/body (avoids duplicate root layout) |
 | Request modal | `components/PaperworkRequestModal.tsx` | Dispatcher creates request + copies link |
-| Detail modal | `components/InvoiceDetailModal.tsx` | Tabbed: Details + Documents; upload toolbar + Request from Driver; inline edit (doc_type, issued_at, expires_at) + delete per doc |
+| Detail modal | `components/InvoiceDetailModal.tsx` | Tabbed: Details + Documents; upload toolbar + Request from Driver; inline edit (doc_type only) + delete per doc |
 | Invoices page | `app/(dispatcher)/invoices/page.tsx` | Uses InvoiceDetailModal |
 | Storage bucket | Supabase Storage `invoice-documents` | Private bucket — must be created manually |
 | Setting | `backend/app/config.py` | `dispatcher_url` — base URL for magic links |
