@@ -19,6 +19,8 @@ broker_service = BrokerService()
 _LOADS: list[dict] = []
 # In-memory invoice store — companion for auto-created invoices
 _INVOICES: list[dict] = []
+# In-memory message store — fallback when messages table is blocked/unavailable
+_MESSAGES: list[dict] = []
 
 
 class CreateLoadIn(BaseModel):
@@ -478,9 +480,21 @@ def list_messages(
             .order("created_at", desc=False)
             .execute()
         )
-        return ok([_serialize_message(row) for row in (result.data or [])])
+        rows = result.data or []
+        # If DB returned nothing, also surface any in-memory messages (RLS fallback)
+        if not rows:
+            rows = sorted(
+                [m for m in _MESSAGES if m.get("load_id") == load_id],
+                key=lambda m: m.get("created_at", ""),
+            )
+        return ok([_serialize_message(row) for row in rows])
     except Exception:
-        return ok([])
+        # DB unavailable — return in-memory messages for this load
+        rows = sorted(
+            [m for m in _MESSAGES if m.get("load_id") == load_id],
+            key=lambda m: m.get("created_at", ""),
+        )
+        return ok([_serialize_message(row) for row in rows])
 
 
 @router.post("/{load_id}/messages", status_code=201)
@@ -497,7 +511,10 @@ def create_message(
         "sender_id": user.user_id,
         "sender_role": "dispatcher",
         "body": payload.body,
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     result = safe_execute(sb.table("messages").insert(row), fallback=[row])
     payload_row = result.data[0] if result.data else row
+    # Always persist in memory — ensures GET works even when DB insert was blocked
+    _MESSAGES.append(payload_row)
     return ok(_serialize_message(payload_row))
