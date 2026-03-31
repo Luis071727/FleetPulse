@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-03-31
+Last updated: 2026-03-31 (CarrierDetailModal)
 
 ---
 
@@ -159,11 +159,13 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 | Layer | File | Notes |
 |-------|------|-------|
-| Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/carriers/page.tsx` | Roster with grid/list toggle |
+| Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/carriers/page.tsx` | Roster with grid/list toggle; clicking a carrier opens CarrierDetailModal |
 | Add modal | `components/AddCarrierModal.tsx` | DOT lookup or manual creation |
-| Detail drawer | `components/DetailDrawer.tsx` | Carrier detail panel |
+| **Detail modal** | `components/CarrierDetailModal.tsx` | **Tabbed modal** (Carrier Info + Documents); replaces old side drawer; uses carrier_compliance System 2 for documents |
+| Info tab | `components/CarrierDetailModal.tsx` | FMCSA read-only display + editable fields + Save Changes → `updateCarrier` |
+| Documents tab | `components/CarrierDetailModal.tsx` | Upload toolbar, doc list with inline edit/delete, magic link requests via `CarrierDocumentRequestModal` |
 | API calls | `services/api.ts:132–181` | `listCarriers`, `getCarrier`, `addCarrier`, `lookupDot`, `createCarrierManual`, `updateCarrier` |
-| Backend route | `backend/app/carriers/routes.py` | CRUD + `/lookup` + `/manual` + compliance-documents + pending-actions |
+| Backend route | `backend/app/carriers/routes.py` | CRUD + `/lookup` + `/manual` + compliance-documents (legacy) + pending-actions |
 | Backend service | `backend/app/carriers/service.py` | `CarrierService`, in-memory `_CARRIERS` fallback |
 | FMCSA integration | `backend/app/fmcsa/cache.py` | `FmcsaCacheService` — DOT lookup with in-memory cache |
 | DB table | `carriers` | id, organization_id, legal_name, dot_number, mc_number, status, contact_*, address, drivers, power_units, portal_status |
@@ -176,15 +178,14 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 ### COMPLIANCE DOCUMENTS (sub-resource of Carriers)
 
-> **Note:** The dispatcher-side compliance management has been fully replaced by the CARRIER COMPLIANCE DOCUMENTS feature below. The legacy endpoints below still exist for the Carrier Portal read-only view.
+> **Note:** Dispatcher-side compliance management is now handled entirely by `CarrierDetailModal` → Documents tab → using the CARRIER COMPLIANCE DOCUMENTS (System 2) endpoints below. The legacy System 1 endpoints below exist for the Carrier Portal read-only view only.
 
 | Layer | File | Notes |
 |-------|------|-------|
-| API calls | `services/api.ts` | `listComplianceDocs`, `updateComplianceDoc`, `deleteComplianceDoc`, `listPendingActions` |
-| Backend | `backend/app/carriers/routes.py` | `GET/PATCH/DELETE /carriers/{id}/compliance-documents`, `GET /carriers/{id}/pending-actions` |
-| Inline edit UI | `app/(dispatcher)/carriers/page.tsx` | Pencil/Trash2 per row; edit doc_type, issued_at, expires_at; "Manage Documents" button → CarrierComplianceModal |
-| Carrier page | `FleetPulse/app/compliance/page.tsx` | Carrier's compliance view |
-| Component | `FleetPulse/components/ComplianceDocRow.tsx` | Individual doc row |
+| API calls (legacy) | `services/api.ts` | `listComplianceDocs`, `updateComplianceDoc`, `deleteComplianceDoc`, `listPendingActions` — no longer used in dispatcher UI |
+| Backend (legacy) | `backend/app/carriers/routes.py` | `GET/PATCH/DELETE /carriers/{id}/compliance-documents`, `GET /carriers/{id}/pending-actions` |
+| Carrier page | `FleetPulse/app/compliance/page.tsx` | Carrier's compliance view (read-only) |
+| Component | `FleetPulse/components/ComplianceDocRow.tsx` | Individual doc row (carrier portal) |
 | DB table | `compliance_documents` | id, carrier_id, doc_type (INSURANCE/CDL/REGISTRATION/INSPECTION/OTHER), label, storage_path, file_name, **issued_at** (date, added 20260331), expires_at (date), status, uploaded_at |
 | Migration | `20260331_doc_date_fields.sql` | Adds `issued_at` to compliance_documents; adds `issued_at` + `expires_at` to invoice_documents |
 
@@ -345,14 +346,15 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | DB table (new) | `carrier_document_requests` | Same migration — token, carrier_id, org_id, doc_types[], 72h expiry |
 | Constraint fix | — | Migration `20260330_carrier_compliance_doctype_fix.sql` — drops old `doc_type_check`, adds one covering all types |
 | Backend module | `backend/app/carrier_compliance/` | `__init__.py` + `service.py` + `routes.py` |
-| Backend service | `backend/app/carrier_compliance/service.py` | `CarrierComplianceService` — create_request, get_request_by_token, upload_file, upload_file_direct, list_documents (signed URLs), _maybe_fulfill |
-| Backend routes | `backend/app/carrier_compliance/routes.py` | 5 endpoints (see below) |
+| Backend service | `backend/app/carrier_compliance/service.py` | `CarrierComplianceService` — create_request, get_request_by_token, upload_file, upload_file_direct, list_documents (signed URLs), _maybe_fulfill, **update_document**, **delete_document** |
+| Backend routes | `backend/app/carrier_compliance/routes.py` | **7 endpoints** (see below) |
 | Router registration | `backend/app/main.py` | `carrier_compliance_router` included in api_v1 |
-| API calls | `services/api.ts` | `requestCarrierDocs`, `validateCarrierUploadToken`, `uploadCarrierFile`, `uploadCarrierFileDirect`, `listCarrierDocuments` |
+| API calls | `services/api.ts` | `requestCarrierDocs`, `validateCarrierUploadToken`, `uploadCarrierFile`, `uploadCarrierFileDirect`, `listCarrierDocuments`, **`updateCarrierDoc`**, **`deleteCarrierDoc`** |
 | Public upload page | `app/(public)/carrier-upload/[token]/page.tsx` | Carrier/owner-facing; per-doc issue_date + expiry_date inputs |
-| Compliance modal | `components/CarrierComplianceModal.tsx` | Central compliance hub: upload toolbar (doc_type + issue_date + expires_at + file), document list with expiry badges, open requests with Copy Link |
-| Request modal | `components/CarrierDocumentRequestModal.tsx` | Checkbox doc type selector → generates magic link |
-| Carriers page | `app/(dispatcher)/carriers/page.tsx` | Drawer Compliance section → "Manage Documents" button opens CarrierComplianceModal |
+| **Detail modal** | `components/CarrierDetailModal.tsx` | **Primary entry point** — tabbed modal with Info + Documents tabs; inline edit (doc_type, issue_date, expires_at) + delete per doc; optimistic UI |
+| Compliance modal | `components/CarrierComplianceModal.tsx` | Standalone compliance hub — still usable independently |
+| Request modal | `components/CarrierDocumentRequestModal.tsx` | Checkbox doc type selector → generates magic link; used inside CarrierDetailModal |
+| Carriers page | `app/(dispatcher)/carriers/page.tsx` | Clicking carrier opens `CarrierDetailModal` (replaced old drawer + CarrierComplianceModal) |
 | Storage bucket | Supabase Storage `carrier-documents` | Private bucket — must be created manually |
 
 **API endpoints:**
@@ -361,6 +363,8 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 - `POST /api/v1/carrier-compliance/upload/{token}/files` — **public** — multipart (file + doc_type + issue_date? + expires_at?)
 - `POST /api/v1/carrier-compliance/carriers/{id}/documents` — dispatcher auth — direct upload
 - `GET /api/v1/carrier-compliance/carriers/{id}/documents` — auth — returns `{ documents[], requests[] }`
+- `PATCH /api/v1/carrier-compliance/carriers/{id}/documents/{doc_id}` — dispatcher — update doc_type, issue_date, expires_at
+- `DELETE /api/v1/carrier-compliance/carriers/{id}/documents/{doc_id}` — dispatcher — delete document record
 
 **Token lifecycle:** same as invoice paperwork — UUID → 72h → pending / fulfilled / expired
 
