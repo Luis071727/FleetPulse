@@ -16,7 +16,8 @@ CREATE INDEX IF NOT EXISTS messages_load_id_idx ON public.messages (load_id);
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
 -- Org-scoped read/write (dispatchers): via load FK
-CREATE POLICY IF NOT EXISTS messages_org_rw ON public.messages
+DROP POLICY IF EXISTS messages_org_rw ON public.messages;
+CREATE POLICY messages_org_rw ON public.messages
     FOR ALL USING (
         load_id IN (
             SELECT id FROM public.loads
@@ -25,7 +26,8 @@ CREATE POLICY IF NOT EXISTS messages_org_rw ON public.messages
     );
 
 -- Carrier self-read: via load FK
-CREATE POLICY IF NOT EXISTS messages_carrier_read ON public.messages
+DROP POLICY IF EXISTS messages_carrier_read ON public.messages;
+CREATE POLICY messages_carrier_read ON public.messages
     FOR SELECT USING (
         load_id IN (
             SELECT id FROM public.loads
@@ -34,7 +36,8 @@ CREATE POLICY IF NOT EXISTS messages_carrier_read ON public.messages
     );
 
 -- Carrier self-insert: can only post to their own loads
-CREATE POLICY IF NOT EXISTS messages_carrier_insert ON public.messages
+DROP POLICY IF EXISTS messages_carrier_insert ON public.messages;
+CREATE POLICY messages_carrier_insert ON public.messages
     FOR INSERT WITH CHECK (
         load_id IN (
             SELECT id FROM public.loads
