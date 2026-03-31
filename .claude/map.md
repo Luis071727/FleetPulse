@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-03-29
+Last updated: 2026-03-31
 
 ---
 
@@ -178,10 +178,13 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 | Layer | File | Notes |
 |-------|------|-------|
-| API calls | `services/api.ts:363–371` | `listComplianceDocs`, `listPendingActions` |
-| Backend | `backend/app/carriers/routes.py` | `/carriers/{id}/compliance-documents`, `/carriers/{id}/pending-actions` |
+| API calls | `services/api.ts:363–398` | `listComplianceDocs`, `updateComplianceDoc`, `deleteComplianceDoc`, `listPendingActions` |
+| Backend | `backend/app/carriers/routes.py` | `GET/PATCH/DELETE /carriers/{id}/compliance-documents`, `GET /carriers/{id}/pending-actions` |
+| Inline edit UI | `app/(dispatcher)/carriers/page.tsx:424–490` | Pencil/Trash2 per row; edit doc_type, issued_at, expires_at |
 | Carrier page | `FleetPulse/app/compliance/page.tsx` | Carrier's compliance view |
 | Component | `FleetPulse/components/ComplianceDocRow.tsx` | Individual doc row |
+| DB table | `compliance_documents` | id, carrier_id, doc_type (INSURANCE/CDL/REGISTRATION/INSPECTION/OTHER), label, storage_path, file_name, **issued_at** (date, added 20260331), expires_at (date), status, uploaded_at |
+| Migration | `20260331_doc_date_fields.sql` | Adds `issued_at` to compliance_documents; adds `issued_at` + `expires_at` to invoice_documents |
 
 ---
 
@@ -301,16 +304,16 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 | Layer | File | Notes |
 |-------|------|-------|
-| DB tables | `invoice_document_requests`, `invoice_documents` | Migration: `20260329_invoice_paperwork.sql` |
-| Backend service | `backend/app/paperwork/service.py` | `PaperworkService` — create_request, get_request_by_token, upload_file, list_documents |
-| Backend routes | `backend/app/paperwork/routes.py` | 4 endpoints (see below) |
+| DB tables | `invoice_document_requests`, `invoice_documents` | Migration: `20260329_invoice_paperwork.sql`; `issued_at`/`expires_at` added via `20260331_doc_date_fields.sql` |
+| Backend service | `backend/app/paperwork/service.py` | `PaperworkService` — create_request, get_request_by_token, upload_file, list_documents, **delete_document**, **update_document** |
+| Backend routes | `backend/app/paperwork/routes.py` | 6 endpoints (see below) |
 | Router registration | `backend/app/main.py` | `paperwork_router` included in api_v1 |
-| API calls | `services/api.ts` (bottom of file) | `requestPaperwork`, `validateUploadToken`, `uploadInvoiceFile`, `listInvoiceDocuments` |
+| API calls | `services/api.ts` (bottom of file) | `requestPaperwork`, `validateUploadToken`, `uploadInvoiceFile`, `listInvoiceDocuments`, **`updateInvoiceDocument`**, **`deleteInvoiceDocument`** |
 | Public upload page | `fleetpulse-dispatcher/frontend/app/(public)/upload/[token]/page.tsx` | Driver-facing, no auth required |
 | Public layout | `fleetpulse-dispatcher/frontend/app/(public)/layout.tsx` | Bare layout, no nav |
 | Request modal | `components/PaperworkRequestModal.tsx` | Dispatcher creates request + copies link |
-| Detail modal | `components/InvoiceDetailModal.tsx` | Tabbed: Details + Documents — replaces EditInvoiceModal |
-| Invoices page | `app/(dispatcher)/invoices/page.tsx` | Uses InvoiceDetailModal (replaces EditInvoiceModal) |
+| Detail modal | `components/InvoiceDetailModal.tsx` | Tabbed: Details + Documents — inline edit (doc_type, issued_at, expires_at) + delete per doc |
+| Invoices page | `app/(dispatcher)/invoices/page.tsx` | Uses InvoiceDetailModal |
 | Storage bucket | Supabase Storage `invoice-documents` | Must be created manually in Supabase dashboard |
 | Setting | `backend/app/config.py` | `dispatcher_url` — base URL for magic links |
 | Env var | `DISPATCHER_URL` | Defaults to `http://localhost:3001` |
@@ -320,6 +323,8 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 - `GET /api/v1/paperwork/upload/{token}` — **public** — validate token, returns invoice context
 - `POST /api/v1/paperwork/upload/{token}/files` — **public** — multipart upload (file + doc_type), returns doc record
 - `GET /api/v1/paperwork/invoices/{id}/documents` — auth required — returns `{ documents[], requests[] }`
+- `PATCH /api/v1/paperwork/invoices/{id}/documents/{doc_id}` — dispatcher — update doc_type, issued_at, expires_at
+- `DELETE /api/v1/paperwork/invoices/{id}/documents/{doc_id}` — dispatcher — delete document record
 
 **Token lifecycle:** UUID in DB → 72h expiry → status: `pending` → `fulfilled` (all docs uploaded) / `expired`
 
@@ -336,6 +341,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 - Dispatcher app has its own `tailwind.config` (similar tokens)
 - Key tokens: `brand-amber` (#F59E0B), `brand-surface` (#0D1318), `brand-slate` (#F0F6FC), `brand-danger`, `brand-success`, `brand-warning`
 - `cn()` helper: `FleetPulse/lib/cn.ts` — clsx + tailwind-merge
+- Icons: `components/icons/index.tsx` — custom SVG set; includes Pencil, Trash2 (added 2026-03-31)
 
 ### Error Handling
 - Backend: global exception handler in `main.py:30–36` → returns `ResponseEnvelope` with `error_code: INTERNAL_ERROR`
