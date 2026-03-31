@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-03-31 (LoadDetailModal)
+Last updated: 2026-03-31 (messages table + fallback fix)
 
 ---
 
@@ -125,9 +125,14 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Layer | File | Notes |
 |-------|------|-------|
 | API calls | `services/api.ts:351–358` | `listMessages`, `sendMessage` |
-| Backend | `backend/app/loads/routes.py:460–503` | Sub-routes on `/loads/{load_id}/messages` |
-| DB table | `messages` | id, load_id, sender_id, sender_role, body |
-| Carrier component | `FleetPulse/components/MessageThread.tsx` | Renders thread, handles send |
+| Backend | `backend/app/loads/routes.py` | Sub-routes on `/loads/{load_id}/messages` |
+| In-memory fallback | `backend/app/loads/routes.py` | `_MESSAGES` list — mirrors `_LOADS`/`_INVOICES` pattern; populated on every insert so GET works even when DB blocked |
+| DB table | `messages` | id, load_id, sender_id, sender_role, body, created_at (DEFAULT NOW()) |
+| Migration | `20260331_messages_table.sql` | Creates table, enables RLS, org-scoped + carrier self policies, grants to service_role |
+| Dispatcher UI | `components/LoadDetailModal.tsx` | Messages tab — auto-fetches on tab switch, send box with Enter support |
+| Carrier component | `FleetPulse/components/MessageThread.tsx` | Renders thread, handles send (carrier portal) |
+
+**Bug fixed (2026-03-31):** Messages table was missing from all migrations — INSERTs hit RLS fallback and were discarded. GET silently returned `[]`. Fix: migration creates table; `_MESSAGES` in-memory list ensures messages survive within a session even if DB is still unavailable.
 
 ---
 
@@ -415,6 +420,8 @@ supabase/migrations/
   20260329_invoice_paperwork_grants.sql           ← GRANT ALL TO service_role (critical)
   20260330_carrier_compliance.sql                 ← enhance compliance_documents + carrier_document_requests
   20260330_carrier_compliance_doctype_fix.sql     ← drop/replace doc_type CHECK constraint
+  20260331_messages_table.sql                     ← messages table + RLS + grants (was missing)
+  20260331_doc_date_fields.sql                    ← issued_at on compliance_documents + invoice_documents
 ```
 
 ### Supabase Client Rules
