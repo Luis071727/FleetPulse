@@ -1,6 +1,7 @@
 import logging
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from pydantic import BaseModel as _BaseModel
 from pydantic import BaseModel
 
 from app.common.schemas import ResponseEnvelope, ok
@@ -20,6 +21,12 @@ class CreateRequestIn(BaseModel):
     doc_types: list[str]
     notes: str | None = None
     recipient_email: str | None = None
+
+
+class UpdateDocumentIn(_BaseModel):
+    doc_type: str | None = None
+    issued_at: str | None = None
+    expires_at: str | None = None
 
 
 # ── POST /paperwork/requests ── (dispatcher only) ─────────────────────────────
@@ -186,3 +193,38 @@ def list_invoice_documents(
 ) -> ResponseEnvelope:
     result = _service.list_documents(invoice_id=invoice_id, org_id=user.organization_id)
     return ok(result)
+
+
+# ── PATCH /paperwork/invoices/{invoice_id}/documents/{doc_id} ── (dispatcher) ─
+
+@router.patch("/invoices/{invoice_id}/documents/{doc_id}")
+def update_invoice_document(
+    invoice_id: str,
+    doc_id: str,
+    payload: UpdateDocumentIn,
+    user: CurrentUser = Depends(require_dispatcher),
+) -> ResponseEnvelope:
+    updates = payload.model_dump(exclude_none=True)
+    if not updates:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
+    try:
+        doc = _service.update_document(doc_id=doc_id, invoice_id=invoice_id, org_id=user.organization_id, updates=updates)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    return ok(doc)
+
+
+# ── DELETE /paperwork/invoices/{invoice_id}/documents/{doc_id} ── (dispatcher) ─
+
+@router.delete("/invoices/{invoice_id}/documents/{doc_id}", status_code=204)
+def delete_invoice_document(
+    invoice_id: str,
+    doc_id: str,
+    user: CurrentUser = Depends(require_dispatcher),
+) -> Response:
+    deleted = _service.delete_document(doc_id=doc_id, invoice_id=invoice_id, org_id=user.organization_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    return Response(status_code=204)

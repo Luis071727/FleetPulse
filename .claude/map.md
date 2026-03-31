@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-03-30
+Last updated: 2026-03-31
 
 ---
 
@@ -180,10 +180,13 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 | Layer | File | Notes |
 |-------|------|-------|
-| Legacy API calls | `services/api.ts` | `listComplianceDocs`, `listPendingActions` — no longer used in dispatcher UI |
-| Legacy backend | `backend/app/carriers/routes.py` | `GET /carriers/{id}/compliance-documents`, `GET /carriers/{id}/pending-actions` — kept for carrier portal |
-| Carrier page | `FleetPulse/app/compliance/page.tsx` | Carrier's own compliance view |
+| API calls | `services/api.ts` | `listComplianceDocs`, `updateComplianceDoc`, `deleteComplianceDoc`, `listPendingActions` |
+| Backend | `backend/app/carriers/routes.py` | `GET/PATCH/DELETE /carriers/{id}/compliance-documents`, `GET /carriers/{id}/pending-actions` |
+| Inline edit UI | `app/(dispatcher)/carriers/page.tsx` | Pencil/Trash2 per row; edit doc_type, issued_at, expires_at; "Manage Documents" button → CarrierComplianceModal |
+| Carrier page | `FleetPulse/app/compliance/page.tsx` | Carrier's compliance view |
 | Component | `FleetPulse/components/ComplianceDocRow.tsx` | Individual doc row |
+| DB table | `compliance_documents` | id, carrier_id, doc_type (INSURANCE/CDL/REGISTRATION/INSPECTION/OTHER), label, storage_path, file_name, **issued_at** (date, added 20260331), expires_at (date), status, uploaded_at |
+| Migration | `20260331_doc_date_fields.sql` | Adds `issued_at` to compliance_documents; adds `issued_at` + `expires_at` to invoice_documents |
 
 ---
 
@@ -303,16 +306,15 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 | Layer | File | Notes |
 |-------|------|-------|
-| DB tables | `invoice_document_requests`, `invoice_documents` | Migration: `20260329_invoice_paperwork.sql` |
-| Grants fix | — | Migration: `20260329_invoice_paperwork_grants.sql` — `GRANT ALL TO service_role` |
-| Backend service | `backend/app/paperwork/service.py` | `PaperworkService` — create_request, get_request_by_token, upload_file, upload_file_direct, list_documents (signed URLs) |
-| Backend routes | `backend/app/paperwork/routes.py` | 5 endpoints (see below) |
+| DB tables | `invoice_document_requests`, `invoice_documents` | Migration: `20260329_invoice_paperwork.sql`; grants: `20260329_invoice_paperwork_grants.sql`; `issued_at`/`expires_at` added via `20260331_doc_date_fields.sql` |
+| Backend service | `backend/app/paperwork/service.py` | `PaperworkService` — create_request, get_request_by_token, upload_file, upload_file_direct, list_documents (signed URLs), **delete_document**, **update_document** |
+| Backend routes | `backend/app/paperwork/routes.py` | 6 endpoints (see below) |
 | Router registration | `backend/app/main.py` | `paperwork_router` included in api_v1 |
-| API calls | `services/api.ts` | `requestPaperwork`, `validateUploadToken`, `uploadInvoiceFile`, `listInvoiceDocuments`, `uploadInvoiceFileDirect` |
+| API calls | `services/api.ts` | `requestPaperwork`, `validateUploadToken`, `uploadInvoiceFile`, `listInvoiceDocuments`, `uploadInvoiceFileDirect`, **`updateInvoiceDocument`**, **`deleteInvoiceDocument`** |
 | Public upload page | `app/(public)/upload/[token]/page.tsx` | Driver-facing, no auth required |
 | Public layout | `app/(public)/layout.tsx` | Bare `<div>` wrapper — NOT html/body (avoids duplicate root layout) |
 | Request modal | `components/PaperworkRequestModal.tsx` | Dispatcher creates request + copies link |
-| Detail modal | `components/InvoiceDetailModal.tsx` | Tabbed: Details + Documents; upload toolbar (dispatcher direct upload) + Request from Driver |
+| Detail modal | `components/InvoiceDetailModal.tsx` | Tabbed: Details + Documents; upload toolbar + Request from Driver; inline edit (doc_type, issued_at, expires_at) + delete per doc |
 | Invoices page | `app/(dispatcher)/invoices/page.tsx` | Uses InvoiceDetailModal |
 | Storage bucket | Supabase Storage `invoice-documents` | Private bucket — must be created manually |
 | Setting | `backend/app/config.py` | `dispatcher_url` — base URL for magic links |
@@ -324,6 +326,8 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 - `POST /api/v1/paperwork/upload/{token}/files` — **public** — multipart (file + doc_type)
 - `POST /api/v1/paperwork/invoices/{id}/files` — dispatcher auth — direct upload (multipart)
 - `GET /api/v1/paperwork/invoices/{id}/documents` — auth — returns `{ documents[], requests[] }`
+- `PATCH /api/v1/paperwork/invoices/{id}/documents/{doc_id}` — dispatcher — update doc_type, issued_at, expires_at
+- `DELETE /api/v1/paperwork/invoices/{id}/documents/{doc_id}` — dispatcher — delete document record
 
 **Token lifecycle:** UUID in DB → 72h expiry → status: `pending` → `fulfilled` / `expired`
 
@@ -377,6 +381,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 - Dispatcher app has its own `tailwind.config` (similar tokens)
 - Key tokens: `brand-amber` (#F59E0B), `brand-surface` (#0D1318), `brand-slate` (#F0F6FC), `brand-danger`, `brand-success`, `brand-warning`
 - `cn()` helper: `FleetPulse/lib/cn.ts` — clsx + tailwind-merge
+- Icons: `components/icons/index.tsx` — custom SVG set; includes Pencil, Trash2 (added 2026-03-31)
 
 ### Error Handling
 - Backend: global exception handler in `main.py:30–36` → returns `ResponseEnvelope` with `error_code: INTERNAL_ERROR`

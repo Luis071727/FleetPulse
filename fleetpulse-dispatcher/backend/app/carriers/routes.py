@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
 
 from app.carriers.service import CarrierService
@@ -20,6 +20,15 @@ fmcsa_cache = FmcsaCacheService()
 class CreateCarrierIn(BaseModel):
     dot_number: str
     notes: str | None = None
+
+
+COMPLIANCE_DOC_TYPES = {"INSURANCE", "CDL", "REGISTRATION", "INSPECTION", "OTHER"}
+
+
+class UpdateComplianceDocIn(BaseModel):
+    doc_type: str | None = None
+    issued_at: str | None = None
+    expires_at: str | None = None
 
 
 class UpdateCarrierIn(BaseModel):
@@ -202,6 +211,67 @@ def list_compliance_documents(
         return ok(result.data or [])
     except Exception:
         return ok([])
+
+
+# ── PATCH /carriers/{carrier_id}/compliance-documents/{doc_id} ──
+
+@router.patch("/{carrier_id}/compliance-documents/{doc_id}")
+def update_compliance_document(
+    carrier_id: str,
+    doc_id: str,
+    payload: UpdateComplianceDocIn,
+    user: CurrentUser = Depends(require_dispatcher),
+) -> ResponseEnvelope:
+    updates = payload.model_dump(exclude_none=True)
+    if not updates:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
+    if "doc_type" in updates and updates["doc_type"] not in COMPLIANCE_DOC_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid doc_type. Valid: {', '.join(sorted(COMPLIANCE_DOC_TYPES))}",
+        )
+    try:
+        sb = get_supabase()
+        result = (
+            sb.table("compliance_documents")
+            .update(updates)
+            .eq("id", doc_id)
+            .eq("carrier_id", carrier_id)
+            .execute()
+        )
+        doc = result.data[0] if result.data else None
+    except Exception as exc:
+        logger.error("Failed to update compliance document %s: %s", doc_id, exc)
+        raise HTTPException(status_code=500, detail="Update failed")
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    return ok(doc)
+
+
+# ── DELETE /carriers/{carrier_id}/compliance-documents/{doc_id} ──
+
+@router.delete("/{carrier_id}/compliance-documents/{doc_id}", status_code=204)
+def delete_compliance_document(
+    carrier_id: str,
+    doc_id: str,
+    user: CurrentUser = Depends(require_dispatcher),
+) -> Response:
+    try:
+        sb = get_supabase()
+        result = (
+            sb.table("compliance_documents")
+            .delete()
+            .eq("id", doc_id)
+            .eq("carrier_id", carrier_id)
+            .execute()
+        )
+        deleted = bool(result.data)
+    except Exception as exc:
+        logger.error("Failed to delete compliance document %s: %s", doc_id, exc)
+        raise HTTPException(status_code=500, detail="Delete failed")
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    return Response(status_code=204)
 
 
 # ── Pending Actions ──
