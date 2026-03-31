@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import FollowUpModal from "./FollowUpModal";
-import { updateInvoice, sendInvoice, deleteInvoice } from "../services/api";
+import { updateInvoice, deleteInvoice } from "../services/api";
 
 type Carrier = { id: string; legal_name: string };
 
@@ -14,9 +14,10 @@ type Props = {
   onStatusChanged?: () => void;
   onEdit?: (invoice: Record<string, unknown>) => void;
   onDeleted?: () => void;
+  onSendInvoice?: (invoice: Record<string, unknown>) => void;
 };
 
-export default function InvoiceRow({ invoice, carriers, onMarkPaid, onFollowupSent, onStatusChanged, onEdit, onDeleted }: Props) {
+export default function InvoiceRow({ invoice, carriers, onMarkPaid, onFollowupSent, onStatusChanged, onEdit, onDeleted, onSendInvoice }: Props) {
   const id = invoice.id as string;
   const invoiceNumber = (invoice.invoice_number as string) || id.slice(0, 8);
   const carrierId = (invoice.carrier_id as string) || "";
@@ -29,7 +30,6 @@ export default function InvoiceRow({ invoice, carriers, onMarkPaid, onFollowupSe
   const followupsSent = Number(invoice.followups_sent || 0);
   const isPaid = status === "paid";
   const [editingCarrier, setEditingCarrier] = useState(false);
-  const [sending, setSending] = useState(false);
 
   const daysBadgeColor = days > 30 ? "#ef4444" : days >= 22 ? "#f59e0b" : days >= 8 ? "#60a5fa" : "#22c55e";
 
@@ -54,15 +54,6 @@ export default function InvoiceRow({ invoice, carriers, onMarkPaid, onFollowupSe
     await updateInvoice(id, { carrier_id: newCarrierId });
     setEditingCarrier(false);
     onStatusChanged?.();
-  };
-
-  const handleSendInvoice = async () => {
-    setSending(true);
-    try {
-      await sendInvoice(id);
-      onStatusChanged?.();
-    } catch { /* */ }
-    finally { setSending(false); }
   };
 
   return (
@@ -132,10 +123,13 @@ export default function InvoiceRow({ invoice, carriers, onMarkPaid, onFollowupSe
             Edit
           </button>
         )}
-        {!isPaid && status === "pending" && (
-          <button type="button" onClick={handleSendInvoice} disabled={sending}
-            style={{ ...btnStyle, color: "#3b82f6", borderColor: "#3b82f6" }}>
-            {sending ? "…" : "Send Invoice"}
+        {!isPaid && status !== "paid" && (
+          <button
+            type="button"
+            onClick={() => onSendInvoice?.(invoice)}
+            style={{ ...btnStyle, color: "#3b82f6", borderColor: "#3b82f6" }}
+          >
+            Send Invoice
           </button>
         )}
         {!isPaid && (

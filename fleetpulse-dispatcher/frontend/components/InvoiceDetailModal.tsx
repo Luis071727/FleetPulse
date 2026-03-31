@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { updateInvoice, listInvoiceDocuments, uploadInvoiceFileDirect, updateInvoiceDocument, deleteInvoiceDocument } from "../services/api";
 import PaperworkRequestModal from "./PaperworkRequestModal";
+import InvoiceSendModal from "./InvoiceSendModal";
 import { CircleCheck, FileText, Folder, Image, Pencil, Trash2, Upload, X } from "./icons";
 
 type Invoice = Record<string, unknown>;
@@ -63,6 +64,7 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
   const [dueDate, setDueDate] = useState((invoice.due_date as string) || "");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [showSendModal, setShowSendModal] = useState(false);
 
   // ── Direct upload state ──
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -256,6 +258,13 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
               {saveError && <p style={{ color: "var(--red)", fontSize: 13 }}>{saveError}</p>}
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 <button type="button" onClick={onClose} style={btnGhostStyle}>Cancel</button>
+                <button
+                  type="button"
+                  onClick={() => setShowSendModal(true)}
+                  style={{ padding: "8px 16px", borderRadius: 6, border: "none", background: "#3b82f6", color: "#fff", fontSize: 14, cursor: "pointer", fontWeight: 700 }}
+                >
+                  Send Invoice
+                </button>
                 <button type="button" onClick={handleSave} disabled={saving} style={{ ...btnAmberStyle, opacity: saving ? 0.6 : 1 }}>
                   {saving ? "Saving…" : "Save Changes"}
                 </button>
@@ -431,6 +440,15 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
             setShowRequestModal(false);
             void fetchDocs();
           }}
+        />
+      )}
+
+      {showSendModal && (
+        <InvoiceSendModal
+          invoice={invoice}
+          carriers={carriers}
+          onClose={() => setShowSendModal(false)}
+          onSent={() => { setShowSendModal(false); onSaved(); }}
         />
       )}
     </>

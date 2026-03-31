@@ -6,6 +6,7 @@ import InvoiceRow from "../../../components/InvoiceRow";
 import { AlertTriangle, X } from "../../../components/icons";
 import AddInvoiceModal from "../../../components/AddInvoiceModal";
 import InvoiceDetailModal from "../../../components/InvoiceDetailModal";
+import InvoiceSendModal from "../../../components/InvoiceSendModal";
 
 type Invoice = Record<string, unknown>;
 type Carrier = { id: string; legal_name: string };
@@ -21,6 +22,7 @@ export default function InvoicePage() {
   const [draftingAll, setDraftingAll] = useState(false);
   const [showAddInvoice, setShowAddInvoice] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [sendingInvoice, setSendingInvoice] = useState<Invoice | null>(null);
 
   const fetchInvoices = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -187,6 +189,7 @@ export default function InvoicePage() {
               onStatusChanged={fetchInvoices}
               onDeleted={fetchInvoices}
               onEdit={(inv) => setEditingInvoice(inv)}
+              onSendInvoice={(inv) => setSendingInvoice(inv)}
             />
           ))}
           {invoices.length === 0 && !loading && (
@@ -216,6 +219,16 @@ export default function InvoicePage() {
           carriers={carriers}
           onClose={() => { setEditingInvoice(null); clearInvoiceQuery(); }}
           onSaved={() => { setEditingInvoice(null); clearInvoiceQuery(); fetchInvoices(); }}
+        />
+      )}
+
+      {/* Send Invoice Modal (from row action) */}
+      {sendingInvoice && (
+        <InvoiceSendModal
+          invoice={sendingInvoice}
+          carriers={carriers}
+          onClose={() => setSendingInvoice(null)}
+          onSent={() => { setSendingInvoice(null); fetchInvoices(); }}
         />
       )}
     </div>
