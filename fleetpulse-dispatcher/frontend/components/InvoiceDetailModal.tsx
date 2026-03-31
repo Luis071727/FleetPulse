@@ -14,8 +14,6 @@ type InvoiceDocument = {
   file_name: string;
   file_url: string;
   uploaded_at: string;
-  issued_at?: string | null;
-  expires_at?: string | null;
 };
 
 type PaperworkRequest = {
@@ -76,8 +74,6 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
   // ── Document edit/delete state ──
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [editDocType, setEditDocType] = useState("");
-  const [editIssuedAt, setEditIssuedAt] = useState("");
-  const [editExpiresAt, setEditExpiresAt] = useState("");
   const [savingDoc, setSavingDoc] = useState(false);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
 
@@ -145,20 +141,14 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
   const startEditDoc = (doc: InvoiceDocument) => {
     setEditingDocId(doc.id);
     setEditDocType(doc.doc_type);
-    setEditIssuedAt(doc.issued_at || "");
-    setEditExpiresAt(doc.expires_at || "");
   };
 
   const handleSaveDoc = async () => {
     if (!editingDocId) return;
     setSavingDoc(true);
-    const updates: Record<string, string | null> = {};
     const current = documents.find((d) => d.id === editingDocId);
-    if (editDocType && editDocType !== current?.doc_type) updates.doc_type = editDocType;
-    if (editIssuedAt !== (current?.issued_at || "")) updates.issued_at = editIssuedAt || null;
-    if (editExpiresAt !== (current?.expires_at || "")) updates.expires_at = editExpiresAt || null;
-    if (Object.keys(updates).length > 0) {
-      await updateInvoiceDocument(invoiceId, editingDocId, updates);
+    if (editDocType && editDocType !== current?.doc_type) {
+      await updateInvoiceDocument(invoiceId, editingDocId, { doc_type: editDocType });
     }
     setSavingDoc(false);
     setEditingDocId(null);
@@ -323,20 +313,12 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
                           <div key={doc.id} style={{ background: "#1e293b", borderRadius: 8, border: "1px solid var(--border)" }}>
                             {editingDocId === doc.id ? (
                               <div style={{ padding: "10px 14px" }}>
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
-                                  <div>
-                                    <label style={{ ...lblStyle, fontSize: 10 }}>Type</label>
+                                <div style={{ display: "flex", alignItems: "flex-end", gap: 8, marginBottom: 8 }}>
+                                  <div style={{ flex: 1 }}>
+                                    <label style={{ ...lblStyle, fontSize: 10 }}>Document Type</label>
                                     <select value={editDocType} onChange={(e) => setEditDocType(e.target.value)} style={{ ...inpStyle, fontSize: 12, padding: "4px 8px" }}>
                                       {Object.entries(DOC_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                                     </select>
-                                  </div>
-                                  <div>
-                                    <label style={{ ...lblStyle, fontSize: 10 }}>Issued Date</label>
-                                    <input type="date" value={editIssuedAt} onChange={(e) => setEditIssuedAt(e.target.value)} style={{ ...inpStyle, fontSize: 12, padding: "4px 8px" }} />
-                                  </div>
-                                  <div>
-                                    <label style={{ ...lblStyle, fontSize: 10 }}>Expires Date</label>
-                                    <input type="date" value={editExpiresAt} onChange={(e) => setEditExpiresAt(e.target.value)} style={{ ...inpStyle, fontSize: 12, padding: "4px 8px" }} />
                                   </div>
                                 </div>
                                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
@@ -355,9 +337,7 @@ export default function InvoiceDetailModal({ invoice, carriers, onClose, onSaved
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <p style={{ margin: 0, fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.file_name}</p>
                                     <p style={{ margin: "2px 0 0", fontSize: 11, color: "var(--mist)" }}>
-                                      {new Date(doc.uploaded_at).toLocaleDateString()}
-                                      {doc.issued_at ? ` · Issued ${new Date(doc.issued_at).toLocaleDateString()}` : ""}
-                                      {doc.expires_at ? ` · Exp ${new Date(doc.expires_at).toLocaleDateString()}` : ""}
+                                      {new Date(doc.uploaded_at).toLocaleDateString()} · {DOC_LABELS[doc.doc_type] || doc.doc_type}
                                     </p>
                                   </div>
                                   <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "#1e3a5f", color: "#93c5fd", fontWeight: 700, whiteSpace: "nowrap" }}>
