@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-03-31 (messages table + fallback fix)
+Last updated: 2026-03-31 (send invoice flow)
 
 ---
 
@@ -144,6 +144,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Row component | `components/InvoiceRow.tsx` | Invoice table row with actions |
 | Follow-up modal | `components/FollowUpModal.tsx` | AI-drafted follow-up email (tone escalation) |
 | Add modal | `components/AddInvoiceModal.tsx` | Manual invoice creation |
+| **Send modal** | `components/InvoiceSendModal.tsx` | Pre-filled Gmail compose (To/Subject/Body) + client-side PDF download; lists attached docs; calls `sendInvoice()` to mark status; triggered from InvoiceRow and InvoiceDetailModal Details tab |
 | API calls | `services/api.ts:230–280` | `listInvoices`, `createInvoice`, `getInvoice`, `markInvoicePaid`, `updateInvoice`, `deleteInvoice`, `sendInvoice` |
 | Backend route | `backend/app/invoices/routes.py` | CRUD |
 | Enrichment | `backend/app/invoices/routes.py:_enrich_invoices()` | Adds days_outstanding, carrier_name, broker_name |
