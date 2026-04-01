@@ -223,7 +223,8 @@ export default function FindCarriersPage() {
     }
   }, []);
 
-  const canSearch = !!(nameQuery.trim() || stateFilter);
+  // FMCSA has no state-only endpoint — name (even 1 letter) is always required
+  const canSearch = nameQuery.trim().length >= 1;
 
   const handleSearch = useCallback(async () => {
     if (!canSearch) return;
@@ -304,7 +305,7 @@ export default function FindCarriersPage() {
             value={nameQuery}
             onChange={(e) => setNameQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Carrier name (optional)…"
+            placeholder={'Name or letter (e.g. "T" + TX finds all Texas T carriers)…'}
             style={{ flex: "1 1 220px", padding: "9px 12px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--white)", fontSize: 14, minWidth: 0 }}
           />
           <select
@@ -373,7 +374,8 @@ export default function FindCarriersPage() {
         <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mist)" }}>
           <SearchTruck size={40} style={{ color: "var(--border)", marginBottom: 12 }} />
           <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 6px", color: "var(--white)" }}>Find your next carrier</p>
-          <p style={{ fontSize: 13, margin: 0 }}>Select a state, enter a name, or both — then click Search.</p>
+          <p style={{ fontSize: 13, margin: "0 0 6px" }}>Type a name or even a single letter to browse — combine with a state to narrow results.</p>
+          <p style={{ fontSize: 12, color: "var(--mist)", margin: 0 }}>Tip: "T" + Texas finds all Texas carriers starting with T.</p>
         </div>
       ) : (() => {
         const displayed = contactOnly

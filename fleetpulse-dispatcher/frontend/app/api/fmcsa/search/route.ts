@@ -66,19 +66,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: [], error: "FMCSA_WEB_KEY not configured" });
   }
 
-  // Require at least a name, DOT, or state
-  if (!dotNumber && !name && !state) {
+  // Require at least a name or DOT — FMCSA has no working state-only endpoint
+  if (!dotNumber && !name) {
     return NextResponse.json({ data: [] });
   }
 
   let url: string;
   if (dotNumber) {
     url = `${FMCSA_BASE}/carriers/${encodeURIComponent(dotNumber)}?webKey=${FMCSA_KEY}`;
-  } else if (name) {
-    url = `${FMCSA_BASE}/carriers/name/${encodeURIComponent(name)}?webKey=${FMCSA_KEY}&start=1&size=50`;
   } else {
-    // State-only search — returns first page of carriers in that state
-    url = `${FMCSA_BASE}/carriers/state/${encodeURIComponent(state)}?webKey=${FMCSA_KEY}&start=1&size=50`;
+    // Name search — even a single letter works (FMCSA does prefix/substring matching)
+    url = `${FMCSA_BASE}/carriers/name/${encodeURIComponent(name)}?webKey=${FMCSA_KEY}&start=1&size=50`;
   }
 
   try {
