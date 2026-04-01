@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-01 (fix AddCarrierModal: FMCSA preview → save, manual entry)
+Last updated: 2026-04-01 (Find Carriers: state-only search, contact-info filter for lead gen)
 
 ---
 
@@ -269,7 +269,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Layer | File | Notes |
 |-------|------|-------|
 | Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/find-carriers/page.tsx` | Search by name/state/fleet size; results grid of CarrierCards with Copy DOT + Write Outreach |
-| FMCSA search API route | `app/api/fmcsa/search/route.ts` | Next.js API route — proxies FMCSA QC Mobile API; **name is required** (state-only omitted — returns too many results); state filter applied server-side after name results; returns `{ data: [], error: "..." }` when `FMCSA_WEB_KEY` unset; **FMCSA response shape:** array searches return `[{ carrier: {...} }]` (wrapped), single DOT returns `{ carrier: {...} }` — route unwraps before normalising; phone mapped from `telephone`/`phyTelephone`/`phoneNumber` |
+| FMCSA search API route | `app/api/fmcsa/search/route.ts` | Next.js API route — proxies FMCSA QC Mobile API; **name OR state required** (either alone is valid); name+state → name search filtered by state client-side; state-only → `/carriers/state/{state}?size=50`; returns `{ data: [], error: "..." }` when `FMCSA_WEB_KEY` unset; **FMCSA response shape:** array searches return `[{ carrier: {...} }]` (wrapped), single DOT returns `{ carrier: {...} }` — route unwraps before normalising; phone mapped from `telephone`/`phyTelephone`/`phoneNumber` |
 | FMCSA carrier detail route | `app/api/fmcsa/carrier/[dot]/route.ts` | Single carrier lookup by DOT; 1h cache |
 | AI outreach route | `app/api/outreach/generate/route.ts` | `POST` — calls Claude Haiku with carrier context + tone; fallback template if `ANTHROPIC_KEY` unset |
 | Outreach modal | `components/OutreachModal.tsx` | Tone selector (friendly/professional/urgent) → Generate → editable draft → Copy / Try Again; shows phone (tap-to-call) + email (mailto) from carrier data |
@@ -283,7 +283,9 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 **Carrier card:** initials avatar, safety rating badge (green/amber/red), metrics strip (trucks/drivers/DOT), cargo tags, phone + email if returned by FMCSA, Copy DOT, Write Outreach
 
-**Search constraints:** carrier name is required; state narrows results client-side after FMCSA name search; Search button disabled when name is empty
+**Search constraints:** name OR state required (either alone works); name+state → FMCSA name search + client-side state filter; state-only → FMCSA state endpoint (50 results); Search button disabled when both name and state are empty
+
+**Contact-info filter:** "Has phone or email only" chip, **default ON**, recommended for outreach; applied client-side after results load; result count shows "N leads with contact info" + "+X more without contact" toggle link; empty state offers "Show all N results" button if filter hides everything
 
 **Outreach flow:** Click "Write Outreach" → check `fp_dispatcher_name` → if missing, show `DispatcherSetupModal` → then show `OutreachModal` → POST `/api/outreach/generate` → Claude Haiku → editable textarea → Copy
 
