@@ -200,6 +200,7 @@ export default function FindCarriersPage() {
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [searchError, setSearchError] = useState("");
   const [outreachCarrier, setOutreachCarrier] = useState<Carrier | null>(null);
   const [showSetup, setShowSetup] = useState(false);
   const [pendingOutreachCarrier, setPendingOutreachCarrier] = useState<Carrier | null>(null);
@@ -217,13 +218,21 @@ export default function FindCarriersPage() {
   const handleSearch = useCallback(async () => {
     setLoading(true);
     setSearched(true);
+    setSearchError("");
     try {
       const params = new URLSearchParams();
       if (nameQuery.trim()) params.set("name", nameQuery.trim());
       if (stateFilter) params.set("state", stateFilter);
 
       const res = await fetch(`/api/fmcsa/search?${params.toString()}`);
-      const json = await res.json() as { data?: Carrier[] };
+      const json = await res.json() as { data?: Carrier[]; error?: string };
+
+      if (json.error) {
+        setSearchError(json.error);
+        setCarriers([]);
+        return;
+      }
+
       let results = json.data || [];
 
       // Client-side fleet size filter
@@ -233,7 +242,8 @@ export default function FindCarriersPage() {
       }
 
       setCarriers(results);
-    } catch {
+    } catch (err) {
+      setSearchError(String(err));
       setCarriers([]);
     } finally {
       setLoading(false);
@@ -322,6 +332,11 @@ export default function FindCarriersPage() {
       {loading ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
           {Array.from({ length: 6 }).map((_, i) => <CarrierSkeleton key={i} />)}
+        </div>
+      ) : searchError ? (
+        <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mist)" }}>
+          <p style={{ fontSize: 16, fontWeight: 600, margin: "0 0 6px", color: "var(--red)" }}>Search unavailable</p>
+          <p style={{ fontSize: 13, margin: 0 }}>{searchError}</p>
         </div>
       ) : searched && carriers.length === 0 ? (
         <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mist)" }}>
