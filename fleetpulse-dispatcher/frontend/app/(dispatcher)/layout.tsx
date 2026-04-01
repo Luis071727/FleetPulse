@@ -3,11 +3,14 @@
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { clearAuth, getUser } from "../../services/api";
-import { BarChart3, Truck, Package, DollarSign, Shield, Fuel, Zap, Menu } from "../../components/icons";
+import { BarChart3, Truck, Package, DollarSign, Shield, Fuel, Zap, Menu, SearchTruck } from "../../components/icons";
 
-const NAV_ITEMS = [
+type NavItem = { label: string; href: string; icon: React.ReactNode; badge?: string };
+
+const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: <BarChart3 size={16} /> },
   { label: "Carriers", href: "/carriers", icon: <Truck size={16} /> },
+  { label: "Find Carriers", href: "/find-carriers", icon: <SearchTruck size={16} />, badge: "New" },
   { label: "Loads", href: "/loads", icon: <Package size={16} /> },
   { label: "Invoices", href: "/invoices", icon: <DollarSign size={16} /> },
   { label: "Insurance IQ", href: "/insurance", icon: <Shield size={16} /> },
@@ -19,8 +22,14 @@ export default function DispatcherLayout({ children }: { children: React.ReactNo
   const router = useRouter();
   const [user, setUserState] = useState<Record<string, unknown> | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [visitedFindCarriers, setVisitedFindCarriers] = useState(true);
 
-  useEffect(() => { setUserState(getUser()); }, []);
+  useEffect(() => {
+    setUserState(getUser());
+    if (typeof window !== "undefined") {
+      setVisitedFindCarriers(!!localStorage.getItem("fp_find_carriers_visited"));
+    }
+  }, []);
 
   const handleLogout = () => {
     clearAuth();
@@ -36,11 +45,18 @@ export default function DispatcherLayout({ children }: { children: React.ReactNo
       <nav style={{ padding: "12px 8px", flex: 1 }}>
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+          const showBadge = item.badge && !visitedFindCarriers;
           return (
             <a
               key={item.href}
               href={item.href}
-              onClick={() => setSidebarOpen(false)}
+              onClick={() => {
+                setSidebarOpen(false);
+                if (item.href === "/find-carriers" && typeof window !== "undefined") {
+                  localStorage.setItem("fp_find_carriers_visited", "1");
+                  setVisitedFindCarriers(true);
+                }
+              }}
               style={{
                 ...navLinkStyle,
                 background: active ? "rgba(245,158,11,0.1)" : "transparent",
@@ -49,7 +65,12 @@ export default function DispatcherLayout({ children }: { children: React.ReactNo
               }}
             >
               <span style={{ fontSize: 16, display: "flex", alignItems: "center" }}>{item.icon}</span>
-              <span>{item.label}</span>
+              <span style={{ flex: 1 }}>{item.label}</span>
+              {showBadge && (
+                <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 10, background: "var(--blue)", color: "#000", letterSpacing: "0.03em" }}>
+                  {item.badge}
+                </span>
+              )}
             </a>
           );
         })}

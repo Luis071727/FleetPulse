@@ -13,6 +13,10 @@
   --blue: #38bdf8;
   --mist: #64748b;
   --white: #f0f6fc;
+  --surface2: #121a22;
+  --surface3: #182230;
+  --border2: #253545;
+  --mistLt: #94a3b8;
 }
 
 html, body {
@@ -173,6 +177,23 @@ input, select, textarea {
   background: transparent;
   border-color: var(--amber);
   color: var(--amber);
+}
+
+/* ── Carrier card stagger animation ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Skeleton pulse ── */
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 0.9; }
+}
+.fp-skeleton {
+  background: var(--surface2);
+  border-radius: 8px;
+  animation: skeletonPulse 1.4s ease-in-out infinite;
 }
 
 /* ── Scrollbar ── */

@@ -263,3 +263,14 @@ export const Trash2 = multiPath(
     <line x1="14" x2="14" y1="11" y2="17" />
   </>
 );
+
+/** Truck + magnifying glass — Find Carriers nav icon */
+export const SearchTruck = multiPath(
+  <>
+    <path d="M10 18V6a2 2 0 0 0-2-2H3a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" />
+    <path d="M11 18h2a1 1 0 0 0 1-1v-2.28a1 1 0 0 0-.684-.948l-1.923-.641A1 1 0 0 1 11 12.18V8a1 1 0 0 1 1-1h.382a1 1 0 0 1 .894.553l.724 1.447" />
+    <circle cx="6" cy="18" r="2" />
+    <circle cx="17.5" cy="15.5" r="3.5" />
+    <path d="m21 19-1.9-1.9" />
+  </>
+);
