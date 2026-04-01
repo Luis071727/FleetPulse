@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-01 (fix Find Carriers: state filter, name required, phone/email)
+Last updated: 2026-04-01 (AddCarrierModal uses frontend FMCSA route)
 
 ---
 
@@ -170,7 +170,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Layer | File | Notes |
 |-------|------|-------|
 | Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/carriers/page.tsx` | Roster with grid/list toggle; clicking a carrier opens CarrierDetailModal |
-| Add modal | `components/AddCarrierModal.tsx` | DOT lookup or manual creation |
+| Add modal | `components/AddCarrierModal.tsx` | DOT lookup (debounced, 1.3s) via `/api/fmcsa/carrier/[dot]` (frontend route — no longer calls backend `lookupDot`); preview shows name, MC#, location, drivers, power units, safety rating, phone, email; manual entry fallback |
 | **Detail modal** | `components/CarrierDetailModal.tsx` | **Tabbed modal** (Carrier Info + Documents); replaces old side drawer; uses carrier_compliance System 2 for documents |
 | Info tab | `components/CarrierDetailModal.tsx` | FMCSA read-only display + editable fields + Save Changes → `updateCarrier` |
 | Documents tab | `components/CarrierDetailModal.tsx` | Upload toolbar, doc list with inline edit/delete, magic link requests via `CarrierDocumentRequestModal` |
