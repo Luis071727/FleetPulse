@@ -208,6 +208,7 @@ export default function FindCarriersPage() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [searchError, setSearchError] = useState("");
+  const [contactOnly, setContactOnly] = useState(true);
   const [outreachCarrier, setOutreachCarrier] = useState<Carrier | null>(null);
   const [showSetup, setShowSetup] = useState(false);
   const [pendingOutreachCarrier, setPendingOutreachCarrier] = useState<Carrier | null>(null);
@@ -222,7 +223,10 @@ export default function FindCarriersPage() {
     }
   }, []);
 
+  const canSearch = !!(nameQuery.trim() || stateFilter);
+
   const handleSearch = useCallback(async () => {
+    if (!canSearch) return;
     setLoading(true);
     setSearched(true);
     setSearchError("");
@@ -255,7 +259,7 @@ export default function FindCarriersPage() {
     } finally {
       setLoading(false);
     }
-  }, [nameQuery, stateFilter, fleetBucket]);
+  }, [nameQuery, stateFilter, fleetBucket, canSearch]);
 
   const handleOutreach = (carrier: Carrier) => {
     if (!dispatcherName) {
@@ -289,18 +293,18 @@ export default function FindCarriersPage() {
           Find Carriers
         </h1>
         <p style={{ fontSize: 13, color: "var(--mist)", margin: 0 }}>
-          Search FMCSA-registered carriers by name + optional state / fleet size. Generate AI outreach in one click.
+          Search FMCSA-registered carriers to find leads. Filter by contact info, state, or fleet size — then generate AI outreach in one click.
         </p>
       </div>
 
       {/* Search bar */}
       <div style={{ background: "var(--surface)", borderRadius: 12, padding: "16px 18px", border: "1px solid var(--border)", marginBottom: 20 }}>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
           <input
             value={nameQuery}
             onChange={(e) => setNameQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Carrier name (required)…"
+            placeholder="Carrier name (optional)…"
             style={{ flex: "1 1 220px", padding: "9px 12px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--white)", fontSize: 14, minWidth: 0 }}
           />
           <select
@@ -321,11 +325,31 @@ export default function FindCarriersPage() {
           <button
             type="button"
             onClick={() => void handleSearch()}
-            disabled={loading || !nameQuery.trim()}
-            style={{ padding: "9px 22px", borderRadius: 7, border: "none", background: "var(--amber)", color: "#000", fontSize: 14, fontWeight: 700, cursor: (loading || !nameQuery.trim()) ? "not-allowed" : "pointer", opacity: (loading || !nameQuery.trim()) ? 0.5 : 1, whiteSpace: "nowrap" }}
+            disabled={loading || !canSearch}
+            style={{ padding: "9px 22px", borderRadius: 7, border: "none", background: "var(--amber)", color: "#000", fontSize: 14, fontWeight: 700, cursor: (loading || !canSearch) ? "not-allowed" : "pointer", opacity: (loading || !canSearch) ? 0.5 : 1, whiteSpace: "nowrap" }}
           >
             {loading ? "Searching…" : "Search"}
           </button>
+        </div>
+
+        {/* Contact-only filter chip */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => setContactOnly((v) => !v)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "4px 12px", borderRadius: 20, fontSize: 12, cursor: "pointer", fontWeight: 500,
+              background: contactOnly ? "rgba(56,189,248,0.12)" : "transparent",
+              border: `1px solid ${contactOnly ? "var(--blue)" : "var(--border)"}`,
+              color: contactOnly ? "var(--blue)" : "var(--mist)",
+              transition: "all 0.15s",
+            }}
+          >
+            <span style={{ fontSize: 14 }}>{contactOnly ? "✓" : "○"}</span>
+            Has phone or email only
+          </button>
+          <span style={{ fontSize: 11, color: "var(--mist)" }}>Recommended for outreach</span>
         </div>
 
         {loading && (
@@ -345,35 +369,70 @@ export default function FindCarriersPage() {
           <p style={{ fontSize: 16, fontWeight: 600, margin: "0 0 6px", color: "var(--red)" }}>Search unavailable</p>
           <p style={{ fontSize: 13, margin: 0 }}>{searchError}</p>
         </div>
-      ) : searched && carriers.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mist)" }}>
-          <SearchTruck size={40} style={{ color: "var(--border)", marginBottom: 12 }} />
-          <p style={{ fontSize: 16, fontWeight: 600, margin: "0 0 6px", color: "var(--white)" }}>No carriers found</p>
-          <p style={{ fontSize: 13, margin: 0 }}>Try a different name, state, or fleet size filter.</p>
-        </div>
       ) : !searched ? (
         <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mist)" }}>
           <SearchTruck size={40} style={{ color: "var(--border)", marginBottom: 12 }} />
-          <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 6px", color: "var(--white)" }}>Search for carriers</p>
-          <p style={{ fontSize: 13, margin: 0 }}>Type a carrier name (required), optionally filter by state or fleet size, then click Search.</p>
+          <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 6px", color: "var(--white)" }}>Find your next carrier</p>
+          <p style={{ fontSize: 13, margin: 0 }}>Select a state, enter a name, or both — then click Search.</p>
         </div>
-      ) : (
-        <>
-          <p style={{ fontSize: 12, color: "var(--mist)", marginBottom: 12 }}>
-            {carriers.length} carrier{carriers.length !== 1 ? "s" : ""} found
-          </p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
-            {carriers.map((c, i) => (
-              <CarrierCard
-                key={c.dot || i}
-                carrier={c}
-                onOutreach={handleOutreach}
-                animDelay={i * 40}
-              />
-            ))}
-          </div>
-        </>
-      )}
+      ) : (() => {
+        const displayed = contactOnly
+          ? carriers.filter((c) => c.telephone || c.email)
+          : carriers;
+        const hiddenCount = carriers.length - displayed.length;
+
+        if (displayed.length === 0) {
+          return (
+            <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mist)" }}>
+              <SearchTruck size={40} style={{ color: "var(--border)", marginBottom: 12 }} />
+              <p style={{ fontSize: 16, fontWeight: 600, margin: "0 0 6px", color: "var(--white)" }}>No leads found</p>
+              <p style={{ fontSize: 13, margin: "0 0 10px" }}>
+                {carriers.length > 0
+                  ? `${carriers.length} carrier${carriers.length !== 1 ? "s" : ""} found but none have contact info. Turn off the filter to see all results.`
+                  : "Try a different name, state, or fleet size."}
+              </p>
+              {carriers.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setContactOnly(false)}
+                  style={{ padding: "7px 16px", borderRadius: 7, border: "1px solid var(--border)", background: "transparent", color: "var(--white)", fontSize: 13, cursor: "pointer" }}
+                >
+                  Show all {carriers.length} results
+                </button>
+              )}
+            </div>
+          );
+        }
+
+        return (
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <p style={{ fontSize: 12, color: "var(--mist)", margin: 0 }}>
+                {displayed.length} lead{displayed.length !== 1 ? "s" : ""} with contact info
+                {hiddenCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setContactOnly(false)}
+                    style={{ background: "none", border: "none", color: "var(--blue)", fontSize: 12, cursor: "pointer", marginLeft: 6, textDecoration: "underline", padding: 0 }}
+                  >
+                    +{hiddenCount} more without contact
+                  </button>
+                )}
+              </p>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+              {displayed.map((c, i) => (
+                <CarrierCard
+                  key={c.dot || i}
+                  carrier={c}
+                  onOutreach={handleOutreach}
+                  animDelay={i * 40}
+                />
+              ))}
+            </div>
+          </>
+        );
+      })()}
 
       {/* Outreach Modal */}
       {outreachCarrier && (
