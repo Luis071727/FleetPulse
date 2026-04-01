@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { addCarrier, lookupDot, createCarrierManual } from "../services/api";
+import { addCarrier, createCarrierManual } from "../services/api";
 
 type Props = {
   onComplete?: () => void;
@@ -24,7 +24,7 @@ export default function AddCarrierModal({ onComplete }: Props) {
 
   const cleanDot = useMemo(() => dot.replace(/\D/g, ""), [dot]);
   const lookupReady = cleanDot.length >= 4;
-  const canSubmit = lookupReady && !!preview?.found && !lookupLoading;
+  const canSubmit = lookupReady && !!preview && !lookupLoading;
 
   useEffect(() => {
     setLookupError(null);
@@ -36,14 +36,13 @@ export default function AddCarrierModal({ onComplete }: Props) {
     const timer = window.setTimeout(async () => {
       setLookupLoading(true);
       try {
-        const res = await lookupDot(cleanDot);
-        if (res.error) {
+        const res = await fetch(`/api/fmcsa/carrier/${cleanDot}`);
+        const json = await res.json() as { data: Record<string, unknown> | null; error?: string };
+        if (json.error || !json.data) {
           setPreview(null);
-          setLookupError(res.error);
+          setLookupError(json.error || "Carrier not found in FMCSA");
         } else {
-          const data = (res.data as Record<string, unknown>) || null;
-          setPreview(data);
-          if (!data?.found) setLookupError("Carrier not found in FMCSA lookup");
+          setPreview(json.data);
         }
       } catch {
         setPreview(null);
@@ -133,12 +132,18 @@ export default function AddCarrierModal({ onComplete }: Props) {
         </div>
       )}
       {preview && (
-        <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 10, marginBottom: 8, background: "var(--surface)" }}>
-          <p className="fp-mono" style={{ fontSize: 11, color: "var(--mist)", margin: "0 0 6px" }}>LOOKUP PREVIEW</p>
-          <p style={{ margin: "0 0 4px", fontSize: 13 }}><strong>Name:</strong> {(preview.legal_name as string) || "-"}</p>
-          <p style={{ margin: "0 0 4px", fontSize: 13 }}><strong>MC#:</strong> {(preview.mc_number as string) || "-"}</p>
-          <p style={{ margin: "0 0 4px", fontSize: 13 }}><strong>Power Units:</strong> {String(preview.power_units || "-")}</p>
-          <p style={{ margin: 0, fontSize: 13 }}><strong>Safety:</strong> {(preview.safety_rating as string) || "-"}</p>
+        <div style={{ border: "1px solid var(--green)", borderRadius: 8, padding: 12, marginBottom: 8, background: "rgba(34,197,94,0.05)" }}>
+          <p className="fp-mono" style={{ fontSize: 11, color: "var(--green)", margin: "0 0 8px", letterSpacing: "0.05em" }}>✓ FMCSA VERIFIED</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
+            <p style={{ margin: 0, fontSize: 13 }}><strong>Name:</strong> {(preview.legal_name as string) || "-"}</p>
+            <p style={{ margin: 0, fontSize: 13 }}><strong>MC#:</strong> {(preview.mc_number as string) || "-"}</p>
+            <p style={{ margin: 0, fontSize: 13 }}><strong>Location:</strong> {[preview.city, preview.state].filter(Boolean).join(", ") || "-"}</p>
+            <p style={{ margin: 0, fontSize: 13 }}><strong>Power Units:</strong> {String(preview.power_units || "-")}</p>
+            <p style={{ margin: 0, fontSize: 13 }}><strong>Drivers:</strong> {String(preview.drivers || "-")}</p>
+            <p style={{ margin: 0, fontSize: 13 }}><strong>Safety:</strong> {(preview.safety_rating as string) || "Not rated"}</p>
+            {preview.telephone && <p style={{ margin: 0, fontSize: 13 }}><strong>Phone:</strong> {preview.telephone as string}</p>}
+            {preview.email && <p style={{ margin: 0, fontSize: 13 }}><strong>Email:</strong> {preview.email as string}</p>}
+          </div>
         </div>
       )}
       {lookupError && (
