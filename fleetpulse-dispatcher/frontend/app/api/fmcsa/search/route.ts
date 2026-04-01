@@ -63,11 +63,18 @@ export async function GET(req: NextRequest) {
     if (!res.ok) throw new Error(`FMCSA returned ${res.status}`);
 
     const json = await res.json();
-    const raw: FmcsaCarrier[] = Array.isArray(json.content)
+
+    // FMCSA wraps array results as [{ carrier: {...} }, ...] and single results as { carrier: {...} }
+    type FmcsaItem = { carrier?: FmcsaCarrier } | FmcsaCarrier;
+    const items: FmcsaItem[] = Array.isArray(json.content)
       ? json.content
       : json.content?.carrier
-        ? [json.content.carrier]
+        ? [{ carrier: json.content.carrier as FmcsaCarrier }]
         : [];
+
+    const raw: FmcsaCarrier[] = items
+      .map((item) => (item as { carrier?: FmcsaCarrier }).carrier ?? (item as FmcsaCarrier))
+      .filter((c) => c.dotNumber);
 
     return NextResponse.json({ data: raw.map(normalizeCarrier) });
   } catch (err) {
