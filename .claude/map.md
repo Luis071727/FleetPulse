@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-03-31 (send invoice flow)
+Last updated: 2026-04-01 (find carriers feature)
 
 ---
 
@@ -264,7 +264,30 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 ---
 
-### FMCSA
+### FIND CARRIERS — Dispatcher
+
+| Layer | File | Notes |
+|-------|------|-------|
+| Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/find-carriers/page.tsx` | Search by name/state/fleet size; results grid of CarrierCards with Copy DOT + Write Outreach |
+| FMCSA search API route | `app/api/fmcsa/search/route.ts` | Next.js API route — proxies FMCSA QC Mobile API; falls back to mock data when `FMCSA_WEB_KEY` unset |
+| FMCSA carrier detail route | `app/api/fmcsa/carrier/[dot]/route.ts` | Single carrier lookup by DOT; 1h cache |
+| AI outreach route | `app/api/outreach/generate/route.ts` | `POST` — calls Claude Haiku with carrier context + tone; fallback template if `ANTHROPIC_KEY` unset |
+| Outreach modal | `components/OutreachModal.tsx` | Tone selector (friendly/professional/urgent) → Generate → editable draft → Copy / Try Again |
+| Setup modal | `components/DispatcherSetupModal.tsx` | Captures dispatcher name + company; stored in `localStorage` keys `fp_dispatcher_name` / `fp_dispatcher_company`; shown on first outreach attempt if name missing |
+| Nav item | `app/(dispatcher)/layout.tsx` | "Find Carriers" between Carriers and Loads; "New" badge shown until `fp_find_carriers_visited` is set in localStorage |
+| CSS tokens | `styles/globals.css` | Added: `--surface2: #121a22`, `--surface3: #182230`, `--border2: #253545`, `--mistLt: #94a3b8`; `@keyframes fadeUp` (card stagger), `@keyframes skeletonPulse` + `.fp-skeleton` class |
+| Icon | `components/icons/index.tsx` | `SearchTruck` — truck + magnifying glass; used in nav + empty state |
+| Env var | `FMCSA_WEB_KEY` (or `FMCSA_API_KEY`) | Frontend env (Next.js server-side only); optional — falls back to mock 6-carrier dataset |
+
+**Fleet size buckets (client-side filter):** Any / Owner-Op 1–2 / Small 3–10 / Medium 11–50 / Large 51+
+
+**Carrier card:** initials avatar, safety rating badge (green/amber/red), metrics strip (trucks/drivers/DOT), cargo tags, contact phone, Copy DOT, Write Outreach
+
+**Outreach flow:** Click "Write Outreach" → check `fp_dispatcher_name` → if missing, show `DispatcherSetupModal` → then show `OutreachModal` → POST `/api/outreach/generate` → Claude Haiku → editable textarea → Copy
+
+---
+
+### FMCSA (Backend)
 
 | Layer | File | Notes |
 |-------|------|-------|
@@ -395,7 +418,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 - Dispatcher app has its own `tailwind.config` (similar tokens)
 - Key tokens: `brand-amber` (#F59E0B), `brand-surface` (#0D1318), `brand-slate` (#F0F6FC), `brand-danger`, `brand-success`, `brand-warning`
 - `cn()` helper: `FleetPulse/lib/cn.ts` — clsx + tailwind-merge
-- Icons: `components/icons/index.tsx` — custom SVG set; includes Pencil, Trash2 (added 2026-03-31)
+- Icons: `components/icons/index.tsx` — custom SVG set; includes Pencil, Trash2 (2026-03-31), SearchTruck (2026-04-01)
 
 ### Error Handling
 - Backend: global exception handler in `main.py:30–36` → returns `ResponseEnvelope` with `error_code: INTERNAL_ERROR`
@@ -403,7 +426,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 - Frontend: `apiFetch` in `services/api.ts:92–98` — unwraps envelope, surfaces `.error` field
 
 ### In-Memory Fallbacks (MVP pattern)
-- `_LOADS`, `_INVOICES` in `backend/app/loads/routes.py:19–21`
+- `_LOADS`, `_INVOICES`, `_MESSAGES` in `backend/app/loads/routes.py:19–21`
 - `_CARRIERS` in `backend/app/carriers/service.py`
 - All are module-level lists populated at runtime, lost on server restart
 - Pattern: try Supabase → `except Exception` → use in-memory store
