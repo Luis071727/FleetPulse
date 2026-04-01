@@ -154,13 +154,20 @@ function CarrierCard({
         </div>
       )}
 
-      {/* Contact row */}
-      <div style={{ marginTop: "auto", borderTop: "1px solid var(--border)", paddingTop: 10, display: "flex", gap: 6, alignItems: "center" }}>
-        {carrier.telephone && (
-          <span style={{ fontSize: 12, color: "var(--mist)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {carrier.telephone}
-          </span>
-        )}
+      {/* Contact info */}
+      {(carrier.telephone || carrier.email) && (
+        <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 2 }}>
+          {carrier.telephone && (
+            <span style={{ fontSize: 12, color: "var(--mistLt)" }}>📞 {carrier.telephone}</span>
+          )}
+          {carrier.email && (
+            <span style={{ fontSize: 12, color: "var(--mistLt)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>✉ {carrier.email}</span>
+          )}
+        </div>
+      )}
+
+      {/* Action row */}
+      <div style={{ marginTop: "auto", borderTop: "1px solid var(--border)", paddingTop: 10, display: "flex", gap: 6, alignItems: "center", justifyContent: "flex-end" }}>
         <button
           type="button"
           onClick={handleCopyDot}
@@ -282,7 +289,7 @@ export default function FindCarriersPage() {
           Find Carriers
         </h1>
         <p style={{ fontSize: 13, color: "var(--mist)", margin: 0 }}>
-          Search FMCSA-registered carriers by name, state, or fleet size. Generate AI outreach in one click.
+          Search FMCSA-registered carriers by name + optional state / fleet size. Generate AI outreach in one click.
         </p>
       </div>
 
@@ -293,7 +300,7 @@ export default function FindCarriersPage() {
             value={nameQuery}
             onChange={(e) => setNameQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search by carrier name…"
+            placeholder="Carrier name (required)…"
             style={{ flex: "1 1 220px", padding: "9px 12px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--white)", fontSize: 14, minWidth: 0 }}
           />
           <select
@@ -314,8 +321,8 @@ export default function FindCarriersPage() {
           <button
             type="button"
             onClick={() => void handleSearch()}
-            disabled={loading}
-            style={{ padding: "9px 22px", borderRadius: 7, border: "none", background: "var(--amber)", color: "#000", fontSize: 14, fontWeight: 700, cursor: loading ? "wait" : "pointer", opacity: loading ? 0.7 : 1, whiteSpace: "nowrap" }}
+            disabled={loading || !nameQuery.trim()}
+            style={{ padding: "9px 22px", borderRadius: 7, border: "none", background: "var(--amber)", color: "#000", fontSize: 14, fontWeight: 700, cursor: (loading || !nameQuery.trim()) ? "not-allowed" : "pointer", opacity: (loading || !nameQuery.trim()) ? 0.5 : 1, whiteSpace: "nowrap" }}
           >
             {loading ? "Searching…" : "Search"}
           </button>
@@ -348,7 +355,7 @@ export default function FindCarriersPage() {
         <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mist)" }}>
           <SearchTruck size={40} style={{ color: "var(--border)", marginBottom: 12 }} />
           <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 6px", color: "var(--white)" }}>Search for carriers</p>
-          <p style={{ fontSize: 13, margin: 0 }}>Enter a carrier name, select a state, or filter by fleet size and click Search.</p>
+          <p style={{ fontSize: 13, margin: 0 }}>Type a carrier name (required), optionally filter by state or fleet size, then click Search.</p>
         </div>
       ) : (
         <>

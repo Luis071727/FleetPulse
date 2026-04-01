@@ -12,6 +12,8 @@ type Carrier = {
   drivers: number;
   cargo_carried?: string | null;
   safety_rating?: string | null;
+  telephone?: string | null;
+  email?: string | null;
 };
 
 type Props = {
@@ -83,12 +85,24 @@ export default function OutreachModal({ carrier, dispatcherName, dispatcherCompa
         </div>
 
         {/* Carrier summary */}
-        <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <Metric label="Fleet" value={`${carrier.power_units} trucks`} />
-          <Metric label="Drivers" value={String(carrier.drivers)} />
-          <Metric label="Rating" value={carrier.safety_rating || "N/A"} />
-          {carrier.cargo_carried && (
-            <Metric label="Cargo" value={carrier.cargo_carried.split(",")[0].trim()} />
+        <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: (carrier.telephone || carrier.email) ? 10 : 0 }}>
+            <Metric label="Fleet" value={`${carrier.power_units} trucks`} />
+            <Metric label="Drivers" value={String(carrier.drivers)} />
+            <Metric label="Rating" value={carrier.safety_rating || "N/A"} />
+            {carrier.cargo_carried && (
+              <Metric label="Cargo" value={carrier.cargo_carried.split(",")[0].trim()} />
+            )}
+          </div>
+          {(carrier.telephone || carrier.email) && (
+            <div style={{ borderTop: "1px solid var(--border2)", paddingTop: 8, display: "flex", flexWrap: "wrap", gap: 14 }}>
+              {carrier.telephone && (
+                <span style={{ fontSize: 12, color: "var(--mistLt)" }}>📞 <a href={`tel:${carrier.telephone}`} style={{ color: "var(--blue)", textDecoration: "none" }}>{carrier.telephone}</a></span>
+              )}
+              {carrier.email && (
+                <span style={{ fontSize: 12, color: "var(--mistLt)" }}>✉ <a href={`mailto:${carrier.email}`} style={{ color: "var(--blue)", textDecoration: "none" }}>{carrier.email}</a></span>
+              )}
+            </div>
           )}
         </div>
 

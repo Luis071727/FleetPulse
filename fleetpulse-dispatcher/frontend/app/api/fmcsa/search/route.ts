@@ -14,11 +14,18 @@ type FmcsaCarrier = {
   safetyRating?: string;
   carrierOperation?: string;
   cargoCarried?: string;
+  // Phone can appear under multiple field names depending on endpoint
   telephone?: string;
+  phyTelephone?: string;
+  phoneNumber?: string;
+  // Email
   emailAddress?: string;
+  email?: string;
 };
 
 function normalizeCarrier(c: FmcsaCarrier) {
+  const phone = c.telephone || c.phyTelephone || c.phoneNumber || null;
+  const email = c.emailAddress || c.email || null;
   return {
     dot: String(c.dotNumber || ""),
     legal_name: c.legalName || c.dbaName || "Unknown Carrier",
@@ -30,9 +37,23 @@ function normalizeCarrier(c: FmcsaCarrier) {
     safety_rating: c.safetyRating || null,
     carrier_operation: c.carrierOperation || null,
     cargo_carried: c.cargoCarried || null,
-    telephone: c.telephone || null,
-    email: c.emailAddress || null,
+    telephone: phone,
+    email,
   };
+}
+
+function unwrapItems(json: unknown): FmcsaCarrier[] {
+  const j = json as Record<string, unknown>;
+  type FmcsaItem = { carrier?: FmcsaCarrier } | FmcsaCarrier;
+  const items: FmcsaItem[] = Array.isArray(j.content)
+    ? (j.content as FmcsaItem[])
+    : (j as { content?: { carrier?: FmcsaCarrier } }).content?.carrier
+      ? [{ carrier: (j as { content: { carrier: FmcsaCarrier } }).content.carrier }]
+      : [];
+
+  return items
+    .map((item) => (item as { carrier?: FmcsaCarrier }).carrier ?? (item as FmcsaCarrier))
+    .filter((c) => c.dotNumber);
 }
 
 export async function GET(req: NextRequest) {
@@ -45,17 +66,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: [], error: "FMCSA_WEB_KEY not configured" });
   }
 
-  if (!dotNumber && !name && !state) {
+  // Require at least a name or DOT — state-alone searches return too many results and time out
+  if (!dotNumber && !name) {
     return NextResponse.json({ data: [] });
   }
 
   let url: string;
   if (dotNumber) {
     url = `${FMCSA_BASE}/carriers/${encodeURIComponent(dotNumber)}?webKey=${FMCSA_KEY}`;
-  } else if (name) {
-    url = `${FMCSA_BASE}/carriers/name/${encodeURIComponent(name)}?webKey=${FMCSA_KEY}&start=1&size=20`;
   } else {
-    url = `${FMCSA_BASE}/carriers/state/${encodeURIComponent(state)}?webKey=${FMCSA_KEY}&start=1&size=20`;
+    url = `${FMCSA_BASE}/carriers/name/${encodeURIComponent(name)}?webKey=${FMCSA_KEY}&start=1&size=25`;
   }
 
   try {
@@ -63,18 +83,12 @@ export async function GET(req: NextRequest) {
     if (!res.ok) throw new Error(`FMCSA returned ${res.status}`);
 
     const json = await res.json();
+    let raw = unwrapItems(json);
 
-    // FMCSA wraps array results as [{ carrier: {...} }, ...] and single results as { carrier: {...} }
-    type FmcsaItem = { carrier?: FmcsaCarrier } | FmcsaCarrier;
-    const items: FmcsaItem[] = Array.isArray(json.content)
-      ? json.content
-      : json.content?.carrier
-        ? [{ carrier: json.content.carrier as FmcsaCarrier }]
-        : [];
-
-    const raw: FmcsaCarrier[] = items
-      .map((item) => (item as { carrier?: FmcsaCarrier }).carrier ?? (item as FmcsaCarrier))
-      .filter((c) => c.dotNumber);
+    // Apply state filter client-side (FMCSA name search doesn't support state scoping)
+    if (state) {
+      raw = raw.filter((c) => (c.phyState || "").toUpperCase() === state.toUpperCase());
+    }
 
     return NextResponse.json({ data: raw.map(normalizeCarrier) });
   } catch (err) {
