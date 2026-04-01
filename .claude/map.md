@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-01 (find carriers — remove mock data)
+Last updated: 2026-04-01 (fix FMCSA response parsing)
 
 ---
 
@@ -269,7 +269,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Layer | File | Notes |
 |-------|------|-------|
 | Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/find-carriers/page.tsx` | Search by name/state/fleet size; results grid of CarrierCards with Copy DOT + Write Outreach |
-| FMCSA search API route | `app/api/fmcsa/search/route.ts` | Next.js API route — proxies FMCSA QC Mobile API; returns `{ data: [], error: "..." }` when `FMCSA_WEB_KEY` unset (no mock fallback); page shows red "Search unavailable" state |
+| FMCSA search API route | `app/api/fmcsa/search/route.ts` | Next.js API route — proxies FMCSA QC Mobile API; returns `{ data: [], error: "..." }` when `FMCSA_WEB_KEY` unset; **FMCSA response shape:** array searches return `[{ carrier: {...} }]` (wrapped), single DOT returns `{ carrier: {...} }` — route unwraps before normalising |
 | FMCSA carrier detail route | `app/api/fmcsa/carrier/[dot]/route.ts` | Single carrier lookup by DOT; 1h cache |
 | AI outreach route | `app/api/outreach/generate/route.ts` | `POST` — calls Claude Haiku with carrier context + tone; fallback template if `ANTHROPIC_KEY` unset |
 | Outreach modal | `components/OutreachModal.tsx` | Tone selector (friendly/professional/urgent) → Generate → editable draft → Copy / Try Again |
