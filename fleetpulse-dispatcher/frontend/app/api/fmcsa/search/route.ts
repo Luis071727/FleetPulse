@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 const FMCSA_BASE = "https://mobile.fmcsa.dot.gov/qc/services";
 const FMCSA_KEY = process.env.FMCSA_WEB_KEY || process.env.FMCSA_API_KEY || "";
+const PAGE_SIZE = 50;
+const PAGES = 3; // fetch 3 pages in parallel = up to 150 results
 
 type FmcsaCarrier = {
   dotNumber?: string | number;
@@ -14,11 +16,9 @@ type FmcsaCarrier = {
   safetyRating?: string;
   carrierOperation?: string;
   cargoCarried?: string;
-  // Phone can appear under multiple field names depending on endpoint
   telephone?: string;
   phyTelephone?: string;
   phoneNumber?: string;
-  // Email
   emailAddress?: string;
   email?: string;
 };
@@ -56,6 +56,13 @@ function unwrapItems(json: unknown): FmcsaCarrier[] {
     .filter((c) => c.dotNumber);
 }
 
+async function fetchPage(url: string): Promise<FmcsaCarrier[]> {
+  const res = await fetch(url, { next: { revalidate: 300 } });
+  if (!res.ok) return [];
+  const json = await res.json();
+  return unwrapItems(json);
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const name = searchParams.get("name") || "";
@@ -66,32 +73,49 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: [], error: "FMCSA_WEB_KEY not configured" });
   }
 
-  // Require at least a name or DOT — FMCSA has no working state-only endpoint
-  if (!dotNumber && !name) {
+  // DOT lookup — single result, no pagination needed
+  if (dotNumber) {
+    try {
+      const res = await fetch(
+        `${FMCSA_BASE}/carriers/${encodeURIComponent(dotNumber)}?webKey=${FMCSA_KEY}`,
+        { next: { revalidate: 3600 } }
+      );
+      if (!res.ok) throw new Error(`FMCSA returned ${res.status}`);
+      const raw = unwrapItems(await res.json());
+      return NextResponse.json({ data: raw.map(normalizeCarrier) });
+    } catch (err) {
+      return NextResponse.json({ data: [], error: String(err) }, { status: 502 });
+    }
+  }
+
+  if (!name) {
     return NextResponse.json({ data: [] });
   }
 
-  let url: string;
-  if (dotNumber) {
-    url = `${FMCSA_BASE}/carriers/${encodeURIComponent(dotNumber)}?webKey=${FMCSA_KEY}`;
-  } else {
-    // Name search — even a single letter works (FMCSA does prefix/substring matching)
-    url = `${FMCSA_BASE}/carriers/name/${encodeURIComponent(name)}?webKey=${FMCSA_KEY}&start=1&size=50`;
-  }
+  // Fetch multiple pages in parallel to maximise contact-info hit rate
+  const pageUrls = Array.from({ length: PAGES }, (_, i) =>
+    `${FMCSA_BASE}/carriers/name/${encodeURIComponent(name)}?webKey=${FMCSA_KEY}&start=${i * PAGE_SIZE + 1}&size=${PAGE_SIZE}`
+  );
 
   try {
-    const res = await fetch(url, { next: { revalidate: 300 } });
-    if (!res.ok) throw new Error(`FMCSA returned ${res.status}`);
+    const pages = await Promise.allSettled(pageUrls.map(fetchPage));
+    const allRaw = pages.flatMap((p) => (p.status === "fulfilled" ? p.value : []));
 
-    const json = await res.json();
-    let raw = unwrapItems(json);
+    // Deduplicate by DOT
+    const seen = new Set<string>();
+    const unique = allRaw.filter((c) => {
+      const key = String(c.dotNumber);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 
-    // Apply state filter client-side (FMCSA name search doesn't support state scoping)
-    if (state) {
-      raw = raw.filter((c) => (c.phyState || "").toUpperCase() === state.toUpperCase());
-    }
+    // Apply state filter
+    const filtered = state
+      ? unique.filter((c) => (c.phyState || "").toUpperCase() === state.toUpperCase())
+      : unique;
 
-    return NextResponse.json({ data: raw.map(normalizeCarrier) });
+    return NextResponse.json({ data: filtered.map(normalizeCarrier) });
   } catch (err) {
     return NextResponse.json({ data: [], error: String(err) }, { status: 502 });
   }
