@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-01 (fix FMCSA response parsing)
+Last updated: 2026-04-01 (fix Find Carriers: state filter, name required, phone/email)
 
 ---
 
@@ -269,19 +269,21 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Layer | File | Notes |
 |-------|------|-------|
 | Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/find-carriers/page.tsx` | Search by name/state/fleet size; results grid of CarrierCards with Copy DOT + Write Outreach |
-| FMCSA search API route | `app/api/fmcsa/search/route.ts` | Next.js API route — proxies FMCSA QC Mobile API; returns `{ data: [], error: "..." }` when `FMCSA_WEB_KEY` unset; **FMCSA response shape:** array searches return `[{ carrier: {...} }]` (wrapped), single DOT returns `{ carrier: {...} }` — route unwraps before normalising |
+| FMCSA search API route | `app/api/fmcsa/search/route.ts` | Next.js API route — proxies FMCSA QC Mobile API; **name is required** (state-only omitted — returns too many results); state filter applied server-side after name results; returns `{ data: [], error: "..." }` when `FMCSA_WEB_KEY` unset; **FMCSA response shape:** array searches return `[{ carrier: {...} }]` (wrapped), single DOT returns `{ carrier: {...} }` — route unwraps before normalising; phone mapped from `telephone`/`phyTelephone`/`phoneNumber` |
 | FMCSA carrier detail route | `app/api/fmcsa/carrier/[dot]/route.ts` | Single carrier lookup by DOT; 1h cache |
 | AI outreach route | `app/api/outreach/generate/route.ts` | `POST` — calls Claude Haiku with carrier context + tone; fallback template if `ANTHROPIC_KEY` unset |
-| Outreach modal | `components/OutreachModal.tsx` | Tone selector (friendly/professional/urgent) → Generate → editable draft → Copy / Try Again |
+| Outreach modal | `components/OutreachModal.tsx` | Tone selector (friendly/professional/urgent) → Generate → editable draft → Copy / Try Again; shows phone (tap-to-call) + email (mailto) from carrier data |
 | Setup modal | `components/DispatcherSetupModal.tsx` | Captures dispatcher name + company; stored in `localStorage` keys `fp_dispatcher_name` / `fp_dispatcher_company`; shown on first outreach attempt if name missing |
 | Nav item | `app/(dispatcher)/layout.tsx` | "Find Carriers" between Carriers and Loads; "New" badge shown until `fp_find_carriers_visited` is set in localStorage |
 | CSS tokens | `styles/globals.css` | Added: `--surface2: #121a22`, `--surface3: #182230`, `--border2: #253545`, `--mistLt: #94a3b8`; `@keyframes fadeUp` (card stagger), `@keyframes skeletonPulse` + `.fp-skeleton` class |
 | Icon | `components/icons/index.tsx` | `SearchTruck` — truck + magnifying glass; used in nav + empty state |
-| Env var | `FMCSA_WEB_KEY` (or `FMCSA_API_KEY`) | Frontend env (Next.js server-side only); optional — falls back to mock 6-carrier dataset |
+| Env var | `FMCSA_WEB_KEY` (or `FMCSA_API_KEY`) | Frontend env (Next.js server-side only); required — no mock fallback |
 
 **Fleet size buckets (client-side filter):** Any / Owner-Op 1–2 / Small 3–10 / Medium 11–50 / Large 51+
 
-**Carrier card:** initials avatar, safety rating badge (green/amber/red), metrics strip (trucks/drivers/DOT), cargo tags, contact phone, Copy DOT, Write Outreach
+**Carrier card:** initials avatar, safety rating badge (green/amber/red), metrics strip (trucks/drivers/DOT), cargo tags, phone + email if returned by FMCSA, Copy DOT, Write Outreach
+
+**Search constraints:** carrier name is required; state narrows results client-side after FMCSA name search; Search button disabled when name is empty
 
 **Outreach flow:** Click "Write Outreach" → check `fp_dispatcher_name` → if missing, show `DispatcherSetupModal` → then show `OutreachModal` → POST `/api/outreach/generate` → Claude Haiku → editable textarea → Copy
 
