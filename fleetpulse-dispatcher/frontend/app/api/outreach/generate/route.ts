@@ -7,14 +7,18 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as {
       carrier: {
-        dot: string;
+        dot_number: string;
         legal_name: string;
         state: string;
         city: string;
         power_units: number;
         drivers: number;
-        cargo_carried?: string | null;
-        safety_rating?: string | null;
+        carrier_operation?: string | null;
+        authorized_for_hire?: boolean;
+        hauls_hazmat?: boolean;
+        add_date?: string | null;
+        last_filing?: string | null;
+        annual_mileage?: number;
       };
       dispatcher_name?: string;
       dispatcher_company?: string;
@@ -32,15 +36,27 @@ export async function POST(req: NextRequest) {
       : tone === "urgent" ? "direct and emphasizing capacity needs urgently"
       : "professional and concise";
 
+    const isNewEntrant = carrier.add_date
+      ? (Date.now() - new Date(carrier.add_date).getTime()) < 1000 * 60 * 60 * 24 * 365 * 2
+      : false;
+
+    const filingAge = carrier.last_filing
+      ? Math.floor((Date.now() - new Date(carrier.last_filing).getTime()) / (1000 * 60 * 60 * 24 * 30))
+      : null;
+
     const prompt = `You are a freight dispatcher writing a cold outreach email to a trucking carrier to offer them loads.
 
 Carrier details:
 - Company: ${carrier.legal_name}
 - Location: ${carrier.city}, ${carrier.state}
 - Fleet size: ${carrier.power_units} trucks, ${carrier.drivers} drivers
-- Cargo specialties: ${carrier.cargo_carried || "General Freight"}
-- Safety rating: ${carrier.safety_rating || "Not rated"}
-- DOT #: ${carrier.dot}
+- Operation type: ${carrier.carrier_operation || "General Freight"}
+- Authorized for hire: ${carrier.authorized_for_hire ? "Yes" : "No"}
+- Hauls hazmat: ${carrier.hauls_hazmat ? "Yes" : "No"}
+- DOT #: ${carrier.dot_number}
+${isNewEntrant ? "- New entrant (registered within last 2 years) — mention you can help them grow their book of business" : ""}
+${filingAge !== null ? `- Last MCS-150 filing: ${filingAge} months ago` : ""}
+${carrier.annual_mileage ? `- Annual mileage: ${carrier.annual_mileage.toLocaleString()} miles` : ""}
 
 Dispatcher info:
 - Name: ${dispatcher_name || "the dispatcher"}

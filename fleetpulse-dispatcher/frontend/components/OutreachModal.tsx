@@ -4,14 +4,18 @@ import { useState } from "react";
 import { X, Sparkles } from "./icons";
 
 type Carrier = {
-  dot: string;
+  dot_number: string;
   legal_name: string;
   state: string;
   city: string;
   power_units: number;
   drivers: number;
-  cargo_carried?: string | null;
-  safety_rating?: string | null;
+  carrier_operation?: string | null;
+  authorized_for_hire?: boolean;
+  hauls_hazmat?: boolean;
+  add_date?: string | null;
+  last_filing?: string | null;
+  annual_mileage?: number;
   telephone?: string | null;
   email?: string | null;
 };
@@ -39,7 +43,7 @@ export default function OutreachModal({ carrier, dispatcherName, dispatcherCompa
       const res = await fetch("/api/outreach/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ carrier, dispatcher_name: dispatcherName, dispatcher_company: dispatcherCompany, tone }),
+        body: JSON.stringify({ carrier, dispatcher_name: dispatcherName, dispatcher_company: dispatcherCompany, tone  }),
       });
       const json = await res.json() as { data?: string; error?: string };
       if (json.error) throw new Error(json.error);
@@ -76,7 +80,7 @@ export default function OutreachModal({ carrier, dispatcherName, dispatcherCompa
               Write Outreach
             </h2>
             <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--mist)" }}>
-              {carrier.legal_name} · {carrier.city}, {carrier.state} · {carrier.power_units} trucks
+              {carrier.legal_name} · {carrier.city}, {carrier.state} · {carrier.power_units} trucks · DOT #{carrier.dot_number}
             </p>
           </div>
           <button type="button" onClick={onClose} style={{ background: "none", border: "none", color: "var(--mist)", cursor: "pointer", display: "flex" }}>
@@ -89,9 +93,9 @@ export default function OutreachModal({ carrier, dispatcherName, dispatcherCompa
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: (carrier.telephone || carrier.email) ? 10 : 0 }}>
             <Metric label="Fleet" value={`${carrier.power_units} trucks`} />
             <Metric label="Drivers" value={String(carrier.drivers)} />
-            <Metric label="Rating" value={carrier.safety_rating || "N/A"} />
-            {carrier.cargo_carried && (
-              <Metric label="Cargo" value={carrier.cargo_carried.split(",")[0].trim()} />
+            <Metric label="Operation" value={carrier.carrier_operation || "—"} />
+            {carrier.authorized_for_hire !== undefined && (
+              <Metric label="Authority" value={carrier.authorized_for_hire ? "For Hire" : "Private"} />
             )}
           </div>
           {(carrier.telephone || carrier.email) && (
