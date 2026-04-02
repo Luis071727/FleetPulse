@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-01 (Find Carriers: parallel pagination + single-letter search + contact filter)
+Last updated: 2026-04-02 (Find Carriers: replaced FMCSA QCMobile with Socrata SODA DOT carrier census API)
 
 ---
 
@@ -268,24 +268,30 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 | Layer | File | Notes |
 |-------|------|-------|
-| Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/find-carriers/page.tsx` | Search by name/state/fleet size; results grid of CarrierCards with Copy DOT + Write Outreach |
-| FMCSA search API route | `app/api/fmcsa/search/route.ts` | Next.js API route — proxies FMCSA QC Mobile API; **name required** (1+ chars); state is a post-filter applied client-side (no working FMCSA state endpoint); fetches **3 pages in parallel** (`Promise.allSettled`, 50 results each = up to 150 total) to maximise contact-info hit rate; deduplicates by DOT; failed pages silently skipped; DOT lookup is single fetch; returns `{ data: [], error: "..." }` when `FMCSA_WEB_KEY` unset; **FMCSA response shape:** array → `[{ carrier: {...} }]`, single DOT → `{ carrier: {...} }` — both unwrapped before normalising; phone mapped from `telephone`/`phyTelephone`/`phoneNumber` |
-| FMCSA carrier detail route | `app/api/fmcsa/carrier/[dot]/route.ts` | Single carrier lookup by DOT; 1h cache |
-| AI outreach route | `app/api/outreach/generate/route.ts` | `POST` — calls Claude Haiku with carrier context + tone; fallback template if `ANTHROPIC_KEY` unset |
-| Outreach modal | `components/OutreachModal.tsx` | Tone selector (friendly/professional/urgent) → Generate → editable draft → Copy / Try Again; shows phone (tap-to-call) + email (mailto) from carrier data |
+| Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/find-carriers/page.tsx` | 3-row filter panel + results grid; Load More pagination; state-only search now works |
+| **Socrata search API route** | `app/api/fmcsa/search/route.ts` | Next.js API route — queries **DOT Socrata SODA API** (`data.transportation.gov/resource/kjg3-diqy.json`); 600k+ carriers; all filters pushed server-side as `$where` clauses; 8s abort timeout; returns `{ results, total, offset, limit, has_more }` |
+| FMCSA carrier detail route | `app/api/fmcsa/carrier/[dot]/route.ts` | Single carrier lookup by DOT; 1h cache; **still uses FMCSA QCMobile** — used only by AddCarrierModal DOT preview |
+| AI outreach route | `app/api/outreach/generate/route.ts` | `POST` — calls Claude Haiku; carrier context includes `carrier_operation`, `authorized_for_hire`, `hauls_hazmat`, `add_date` (new-entrant flag), `last_filing` age, `annual_mileage`; fallback template if `ANTHROPIC_KEY` unset |
+| Outreach modal | `components/OutreachModal.tsx` | Tone selector (friendly/professional/urgent) → Generate → editable draft → Copy / Try Again; Carrier type uses `dot_number`, `carrier_operation`, `authorized_for_hire` (not old `dot`/`safety_rating`/`cargo_carried`) |
 | Setup modal | `components/DispatcherSetupModal.tsx` | Captures dispatcher name + company; stored in `localStorage` keys `fp_dispatcher_name` / `fp_dispatcher_company`; shown on first outreach attempt if name missing |
 | Nav item | `app/(dispatcher)/layout.tsx` | "Find Carriers" between Carriers and Loads; "New" badge shown until `fp_find_carriers_visited` is set in localStorage |
-| CSS tokens | `styles/globals.css` | Added: `--surface2: #121a22`, `--surface3: #182230`, `--border2: #253545`, `--mistLt: #94a3b8`; `@keyframes fadeUp` (card stagger), `@keyframes skeletonPulse` + `.fp-skeleton` class |
-| Icon | `components/icons/index.tsx` | `SearchTruck` — truck + magnifying glass; used in nav + empty state |
-| Env var | `FMCSA_WEB_KEY` (or `FMCSA_API_KEY`) | Frontend env (Next.js server-side only); required — no mock fallback |
+| CSS tokens | `styles/globals.css` | `--surface2`, `--surface3`, `--border2`, `--mistLt`; `@keyframes fadeUp`, `@keyframes skeletonPulse`, `.fp-skeleton` |
+| Icon | `components/icons/index.tsx` | `SearchTruck` — truck + magnifying glass |
+| Env var | none required | Socrata API is free, no auth key needed |
 
-**Fleet size buckets (client-side filter):** Any / Owner-Op 1–2 / Small 3–10 / Medium 11–50 / Large 51+
+**Carrier type (Socrata):** `dot_number`, `legal_name`, `dba_name`, `city`, `state`, `zip`, `telephone`, `email`, `power_units`, `drivers`, `carrier_operation`, `authorized_for_hire` (bool), `hauls_hazmat` (bool), `is_passenger` (bool), `add_date`, `last_filing`, `annual_mileage`, `has_phone`, `has_email`
 
-**Carrier card:** initials avatar, safety rating badge (green/amber/red), metrics strip (trucks/drivers/DOT), cargo tags, phone + email if returned by FMCSA, Copy DOT, Write Outreach
+**Socrata `$where` filters (server-side):** `upper(legal_name) like '%...%'` or `dot_number='...'` for name/DOT; `phy_state='TX'`; `nbr_power_unit >= N`; `telephone IS NOT NULL`; `email_address IS NOT NULL`; `authorized_for_hire='Y'`; `hm_flag='Y'`; `add_date >= cutoff` for new entrants
 
-**Search constraints:** name required (minimum 1 character — single letter works for broad browsing); state narrows results client-side; Search button disabled when name is empty; `/carriers/state/{state}` FMCSA endpoint does not exist (404)
+**Fleet size buckets:** Any / Owner-Op (1) / Small (2–5) / Medium (6–15) / Large (16–50)
 
-**Contact-info filter:** "Has phone or email only" chip, **default ON**, recommended for outreach; applied client-side after results load; result count shows "N leads with contact info" + "+X more without contact" toggle link; empty state offers "Show all N results" button if filter hides everything
+**Filter layout (3 rows):** Row 1 = State select, Fleet size select, Sort select; Row 2 = Has Phone (default ON), Has Email, For Hire Only, HazMat, New Entrants chips; Row 3 = name/DOT input + Find Carriers button
+
+**Carrier card:** initials avatar, dba name (if different), city/state/zip, MCS-150 filing age badge (green <12mo / amber 12–24mo / red >24mo), 4-col metric grid (Trucks/Drivers/DOT/Operation), For Hire / Private Fleet / HazMat / Passenger badges, formatted phone `(XXX) XXX-XXXX`, "No contact info on file" in italic, Copy DOT, Write Outreach
+
+**Search constraints:** name OR state required to avoid querying entire dataset; state-only is now supported (Socrata has working state filter); canSearch = name.length >= 1 OR stateFilter !== ""
+
+**Pagination:** Load More button appends 50 results; `has_more` from API; `currentOffset` tracks position; Load More silently ignores errors
 
 **Outreach flow:** Click "Write Outreach" → check `fp_dispatcher_name` → if missing, show `DispatcherSetupModal` → then show `OutreachModal` → POST `/api/outreach/generate` → Claude Haiku → editable textarea → Copy
 
