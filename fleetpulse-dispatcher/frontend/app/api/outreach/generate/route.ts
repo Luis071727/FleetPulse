@@ -86,9 +86,11 @@ function buildFallbackOutreach(
 
 I'm ${dispatcherName || "reaching out"} from ${dispatcherCompany || "our dispatch office"} and came across your operation out of ${carrier.city}, ${carrier.state}.
 
-With your ${carrier.power_units}-truck fleet, I think we'd be a great fit. We have consistent freight in your lanes and offer competitive rates, quick pay options, and dedicated support.
+With your ${carrier.power_units}-truck fleet, I think we'd be a great fit. We are testing a simple tool where you send the driver a magic link, they upload the documents, and the system sends the full invoice package to the broker.
 
-Would you be open to a quick call to discuss?
+Looking for 5 carriers to test it with real loads (free 5-invoice pack).
+
+Interested?
 
 Best,
 ${dispatcherName || "The Dispatch Team"}
