@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Copy, CheckCircle } from "lucide-react";
+import { Copy, CheckCircle, Loader } from "lucide-react";
 
 import DocRequestItem from "@/components/DocRequestItem";
 import MessageThread from "@/components/MessageThread";
@@ -42,6 +42,8 @@ export default function LoadDetailPage() {
   const [selectedDocType, setSelectedDocType] = useState("POD");
   const [driverDocTypes, setDriverDocTypes] = useState<string[]>(["BOL", "POD"]);
   const [driverLink, setDriverLink] = useState<string | null>(null);
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const refreshLoadContext = async () => {
@@ -118,12 +120,47 @@ export default function LoadDetailPage() {
     );
   }
 
-  function generateDriverLink() {
-    if (!load || !carrier || driverDocTypes.length === 0) return;
-    const types = encodeURIComponent(driverDocTypes.join(","));
-    const url = `${window.location.origin}/driver-upload/${load.id}?types=${types}&cid=${carrier.id}`;
-    setDriverLink(url);
+  async function generateDriverLink() {
+    if (!load || !carrier || !supabase || driverDocTypes.length === 0) return;
+    setGeneratingLink(true);
+    setLinkError(null);
+    setDriverLink(null);
     setCopied(false);
+
+    try {
+      // Find the invoice for this load
+      const invResult = await supabase
+        .from("invoices")
+        .select("id")
+        .eq("load_id", load.id)
+        .eq("carrier_id", carrier.id)
+        .maybeSingle();
+      const invoiceId = (invResult.data as { id: string } | null)?.id;
+      if (!invoiceId) throw new Error("No invoice found for this load. Ask your dispatcher to create one first.");
+
+      // Get Supabase session token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Session expired — please refresh.");
+
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
+      const res = await fetch(`${apiBase}/paperwork/requests`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ invoice_id: invoiceId, doc_types: driverDocTypes }),
+      });
+      const json = await res.json() as { data?: { magic_link?: string }; error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? "Failed to generate link");
+      const link = json.data?.magic_link;
+      if (!link) throw new Error("No link returned from server");
+      setDriverLink(link);
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : "Could not generate link");
+    } finally {
+      setGeneratingLink(false);
+    }
   }
 
   function copyLink() {
@@ -264,12 +301,17 @@ export default function LoadDetailPage() {
 
               <button
                 type="button"
-                disabled={driverDocTypes.length === 0}
-                onClick={generateDriverLink}
+                disabled={driverDocTypes.length === 0 || generatingLink}
+                onClick={() => void generateDriverLink()}
                 className="inline-flex items-center gap-2 rounded-lg border border-amber-700/40 bg-brand-amber px-4 py-2 text-sm font-semibold text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Generate Driver Link
+                {generatingLink ? <Loader size={14} className="animate-spin" /> : null}
+                {generatingLink ? "Generating..." : "Generate Driver Link"}
               </button>
+
+              {linkError && (
+                <p className="text-xs text-brand-danger">{linkError}</p>
+              )}
 
               {driverLink && (
                 <div className="space-y-2">
@@ -295,7 +337,7 @@ export default function LoadDetailPage() {
                     </button>
                   </div>
                   <p className="text-xs text-brand-slate-light">
-                    The driver opens this link on their phone to upload photos or PDFs — no account needed.
+                    Send this to your driver. They can open it on any device to upload photos or PDFs — no account needed. Link expires in 72 hours.
                   </p>
                 </div>
               )}

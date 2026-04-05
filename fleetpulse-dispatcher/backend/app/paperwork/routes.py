@@ -29,12 +29,12 @@ class UpdateDocumentIn(_BaseModel):
     expires_at: str | None = None
 
 
-# ── POST /paperwork/requests ── (dispatcher only) ─────────────────────────────
+# ── POST /paperwork/requests ── (any authenticated user) ──────────────────────
 
 @router.post("/requests", status_code=201)
 def create_paperwork_request(
     payload: CreateRequestIn,
-    user: CurrentUser = Depends(require_dispatcher),
+    user: CurrentUser = Depends(require_authenticated),
 ) -> ResponseEnvelope:
     # Validate doc types
     invalid = [d for d in payload.doc_types if d not in VALID_DOC_TYPES]
@@ -46,10 +46,22 @@ def create_paperwork_request(
     if not payload.doc_types:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="At least one doc_type required")
 
+    # Dispatchers have org_id on their user row; carriers don't — inherit it from the invoice.
+    from app.config import get_supabase as _get_sb
+    org_id = user.organization_id
+    if not org_id:
+        try:
+            inv = _get_sb().table("invoices").select("organization_id").eq("id", payload.invoice_id).maybe_single().execute()
+            org_id = (inv.data or {}).get("organization_id") if inv else None
+        except Exception:
+            pass
+        if not org_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Could not resolve organization for this invoice")
+
     try:
         record = _service.create_request(
             invoice_id=payload.invoice_id,
-            org_id=user.organization_id,
+            org_id=org_id,
             doc_types=payload.doc_types,
             notes=payload.notes,
             recipient_email=payload.recipient_email,

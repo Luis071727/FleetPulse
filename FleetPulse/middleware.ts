@@ -15,11 +15,8 @@ export async function middleware(req: NextRequest) {
   } = await supabase.auth.getSession();
 
   const isAuthRoute = req.nextUrl.pathname.startsWith("/auth");
-  const isPublicRoute =
-    req.nextUrl.pathname.startsWith("/driver-upload") ||
-    req.nextUrl.pathname.startsWith("/api/driver-upload");
 
-  if (!session && !isAuthRoute && !isPublicRoute) {
+  if (!session && !isAuthRoute) {
     return NextResponse.redirect(new URL("/auth/login", req.url));
   }
 
