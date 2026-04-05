@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-02 (Find Carriers: replaced FMCSA QCMobile with Socrata SODA DOT carrier census API)
+Last updated: 2026-04-05 (Monthly Reports page added)
 
 ---
 
@@ -332,6 +332,25 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 |-------|------|-------|
 | Page | `FleetPulse/app/dashboard/page.tsx` | Carrier's own dashboard |
 | Navigation | `FleetPulse/components/NavBar.tsx` | Displays user email, logout |
+
+---
+
+### REPORTS — Monthly Reports
+
+| Layer | File | Notes |
+|-------|------|-------|
+| Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/reports/page.tsx` | Month navigator (← [Month Year] →); 4 KPI tiles; invoice table; Export CSV |
+| Nav item | `app/(dispatcher)/layout.tsx` | "Reports" after Invoices; `FileText` icon |
+| Data sources | `listInvoices({ limit: 1000 })` + `listLoads({ status: "delivered", limit: 1000 })` | Fetched once on mount; filtered client-side on month change |
+| Modal | `components/InvoiceDetailModal` | Reused — clicking a table row opens it |
+
+**KPI tiles:** Total Invoiced (green) / Total Collected (amber) / Outstanding (red if >0) / Loads Completed (mist)
+
+**Month filter:** client-side — invoices filtered by `issued_date.startsWith(YYYY-MM)`; loads filtered by `delivery_date` or `actual_delivery_at`
+
+**Table columns:** Carrier · Broker · Invoice # · Load (last 8 chars of load_id) · Amount · Status · Issued · Paid Date — sorted issued_date DESC
+
+**Export CSV:** client-side Blob; columns Invoice#/Carrier/Broker/Load/Amount/Status/Issued/Paid Date; filename `fleetpulse-report-YYYY-MM.csv`; button disabled when no invoices for month
 
 ---
 
