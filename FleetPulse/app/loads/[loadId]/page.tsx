@@ -3,12 +3,25 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Copy, CheckCircle } from "lucide-react";
 
 import DocRequestItem from "@/components/DocRequestItem";
 import MessageThread from "@/components/MessageThread";
 import StatusBadge from "@/components/StatusBadge";
+import UploadButton from "@/components/UploadButton";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
+import { cn } from "@/lib/cn";
 import type { CarrierRow, DocumentRequestRow, LoadRow, MessageRow } from "@/lib/types";
+
+const DOC_TYPES = [
+  { value: "BOL", label: "Bill of Lading (BOL)" },
+  { value: "POD", label: "Proof of Delivery (POD)" },
+  { value: "RATE_CON", label: "Rate Confirmation" },
+  { value: "WEIGHT_TICKET", label: "Weight Ticket" },
+  { value: "LUMPER_RECEIPT", label: "Lumper Receipt" },
+  { value: "INVOICE", label: "Invoice" },
+  { value: "OTHER", label: "Other" },
+];
 
 export default function LoadDetailPage() {
   const params = useParams<{ loadId: string }>();
@@ -23,6 +36,13 @@ export default function LoadDetailPage() {
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Doc section state
+  const [docMode, setDocMode] = useState<"upload" | "driver">("upload");
+  const [selectedDocType, setSelectedDocType] = useState("POD");
+  const [driverDocTypes, setDriverDocTypes] = useState<string[]>(["BOL", "POD"]);
+  const [driverLink, setDriverLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const refreshLoadContext = async () => {
     const loadId = params.loadId;
@@ -92,6 +112,27 @@ export default function LoadDetailPage() {
     void refreshLoadContext();
   }, [params.loadId, supabase]);
 
+  function toggleDriverDocType(dt: string) {
+    setDriverDocTypes((prev) =>
+      prev.includes(dt) ? prev.filter((t) => t !== dt) : [...prev, dt],
+    );
+  }
+
+  function generateDriverLink() {
+    if (!load || !carrier || driverDocTypes.length === 0) return;
+    const types = encodeURIComponent(driverDocTypes.join(","));
+    const url = `${window.location.origin}/driver-upload/${load.id}?types=${types}&cid=${carrier.id}`;
+    setDriverLink(url);
+    setCopied(false);
+  }
+
+  function copyLink() {
+    if (!driverLink) return;
+    void navigator.clipboard.writeText(driverLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  }
+
   if (loading) return <p className="text-sm text-brand-slate-light">Loading load...</p>;
   if (error || !load || !carrier || !currentUserId) return <p className="text-sm text-brand-danger">{error || "Load unavailable."}</p>;
 
@@ -118,15 +159,16 @@ export default function LoadDetailPage() {
         </div>
       </section>
 
+      {/* ── Documents ── */}
       <section className="space-y-4">
-        <div>
-          <h2 className="section-title">Documents</h2>
-          <p className="mt-1 text-sm text-brand-slate-light">Upload what your dispatcher requested for this load.</p>
-        </div>
-        {requests.length === 0 ? (
-          <div className="card p-5 text-sm text-brand-slate-light">No document requests for this load.</div>
-        ) : (
+        <h2 className="section-title">Load Documents</h2>
+
+        {/* Dispatcher-requested docs (if any) */}
+        {requests.length > 0 && (
           <div className="space-y-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-brand-slate-light">
+              Requested by dispatcher
+            </p>
             {requests.map((request) => (
               <DocRequestItem
                 key={request.id}
@@ -134,13 +176,132 @@ export default function LoadDetailPage() {
                 userId={currentUserId}
                 carrierId={carrier.id}
                 loadId={load.id}
-                onRefresh={() => {
-                  void refreshLoadContext();
-                }}
+                onRefresh={() => void refreshLoadContext()}
               />
             ))}
           </div>
         )}
+
+        {/* Carrier-initiated doc management */}
+        <div className="card p-4 space-y-4">
+          {/* Mode tabs */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setDocMode("upload")}
+              className={cn(
+                "rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
+                docMode === "upload"
+                  ? "border-brand-amber bg-brand-amber-light text-brand-amber"
+                  : "border-brand-border bg-transparent text-brand-slate-light hover:text-brand-slate",
+              )}
+            >
+              Upload Paperwork
+            </button>
+            <button
+              type="button"
+              onClick={() => setDocMode("driver")}
+              className={cn(
+                "rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
+                docMode === "driver"
+                  ? "border-brand-amber bg-brand-amber-light text-brand-amber"
+                  : "border-brand-border bg-transparent text-brand-slate-light hover:text-brand-slate",
+              )}
+            >
+              Request from Driver
+            </button>
+          </div>
+
+          {/* Upload Paperwork mode */}
+          {docMode === "upload" && (
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-brand-slate-light">Document type</label>
+                <select
+                  value={selectedDocType}
+                  onChange={(e) => setSelectedDocType(e.target.value)}
+                  className="w-full rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-sm text-brand-slate focus:outline-none focus:ring-1 focus:ring-brand-amber"
+                >
+                  {DOC_TYPES.map((dt) => (
+                    <option key={dt.value} value={dt.value}>{dt.label}</option>
+                  ))}
+                </select>
+              </div>
+              <UploadButton
+                userId={currentUserId}
+                carrierId={carrier.id}
+                docType={selectedDocType}
+                loadId={load.id}
+                label="Upload File"
+                onSuccess={() => void refreshLoadContext()}
+              />
+            </div>
+          )}
+
+          {/* Request from Driver mode */}
+          {docMode === "driver" && (
+            <div className="space-y-4">
+              <div>
+                <p className="mb-2 text-xs font-medium text-brand-slate-light">Select documents to request</p>
+                <div className="flex flex-wrap gap-2">
+                  {DOC_TYPES.map((dt) => (
+                    <button
+                      key={dt.value}
+                      type="button"
+                      onClick={() => toggleDriverDocType(dt.value)}
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                        driverDocTypes.includes(dt.value)
+                          ? "border-brand-amber bg-brand-amber-light text-brand-amber"
+                          : "border-brand-border bg-transparent text-brand-slate-light hover:text-brand-slate",
+                      )}
+                    >
+                      {dt.value}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={driverDocTypes.length === 0}
+                onClick={generateDriverLink}
+                className="inline-flex items-center gap-2 rounded-lg border border-amber-700/40 bg-brand-amber px-4 py-2 text-sm font-semibold text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Generate Driver Link
+              </button>
+
+              {driverLink && (
+                <div className="space-y-2">
+                  <p className="text-xs text-brand-slate-light">Share this link with your driver:</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      readOnly
+                      value={driverLink}
+                      className="flex-1 truncate rounded-lg border border-brand-border bg-brand-surface px-3 py-2 font-mono text-xs text-brand-slate focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={copyLink}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors whitespace-nowrap",
+                        copied
+                          ? "border-green-700 bg-green-950 text-green-400"
+                          : "border-brand-border text-brand-slate-light hover:text-brand-slate",
+                      )}
+                    >
+                      {copied ? <CheckCircle size={13} /> : <Copy size={13} />}
+                      {copied ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
+                  <p className="text-xs text-brand-slate-light">
+                    The driver opens this link on their phone to upload photos or PDFs — no account needed.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </section>
 
       <section className="space-y-4">
@@ -157,4 +318,3 @@ export default function LoadDetailPage() {
     </div>
   );
 }
-

@@ -197,8 +197,8 @@ export default function InvoicesPage() {
                       </div>
                     </div>
                     <p className="text-xs text-brand-slate-light">
-                      Documents for this invoice are uploaded via the link your dispatcher sends you.
-                      Contact your dispatcher if you need to submit paperwork.
+                      To upload or request load paperwork (BOL, POD, etc.), go to the load detail page
+                      from your <a href="/loads" className="text-brand-amber underline-offset-2 hover:underline">Loads</a> tab.
                     </p>
                   </div>
                 )}

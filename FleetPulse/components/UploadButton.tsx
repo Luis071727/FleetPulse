@@ -52,10 +52,10 @@ export default function UploadButton({
 
       if (uploadResult.error) throw uploadResult.error;
 
-      if (loadId && documentRequestId) {
+      if (loadId) {
         const documentPayload = {
           carrier_id: carrierId,
-          document_request_id: documentRequestId,
+          document_request_id: documentRequestId ?? null,
           file_name: file.name,
           file_size_bytes: file.size,
           file_type: file.type,
@@ -68,16 +68,19 @@ export default function UploadButton({
 
         if (docInsert.error) throw docInsert.error;
 
-        const requestPayload = {
-          status: "uploaded",
-        } satisfies Database["public"]["Tables"]["document_requests"]["Update"];
+        // If this is fulfilling a dispatcher doc request, mark it uploaded
+        if (documentRequestId) {
+          const requestPayload = {
+            status: "uploaded",
+          } satisfies Database["public"]["Tables"]["document_requests"]["Update"];
 
-        const requestUpdate = await supabase
-          .from("document_requests")
-          .update(requestPayload as never)
-          .eq("id", documentRequestId);
+          const requestUpdate = await supabase
+            .from("document_requests")
+            .update(requestPayload as never)
+            .eq("id", documentRequestId);
 
-        if (requestUpdate.error) throw requestUpdate.error;
+          if (requestUpdate.error) throw requestUpdate.error;
+        }
       }
 
       if (complianceDocumentId) {
