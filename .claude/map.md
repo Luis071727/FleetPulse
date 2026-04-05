@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-05 (Carrier-initiated doc upload + driver magic link in FleetPulse loads)
+Last updated: 2026-04-05 (Magic link consolidated onto shared dispatcher paperwork API)
 
 ---
 
@@ -359,20 +359,15 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Navigation | `FleetPulse/components/NavBar.tsx` | Nav items: Home / Loads / Invoices / Docs (Receipt icon); Lucide icons |
 | Invoices page | `FleetPulse/app/invoices/page.tsx` | Carrier's invoice list; expandable rows with detail; Outstanding/Earned/Total KPIs; status badges; links to Loads for paperwork |
 | Loads list | `FleetPulse/app/loads/page.tsx` | Split into Active (logged/in_transit) and History (delivered/cancelled); status pills; rate display; links to load detail |
-| **Load detail** | `FleetPulse/app/loads/[loadId]/page.tsx` | **Two-tab doc section:** "Upload Paperwork" (doc type picker + `UploadButton` → carrier uploads directly) and "Request from Driver" (chip-select doc types → "Generate Driver Link" → shareable URL → copy button). Dispatcher-requested items still shown when present. |
-| **Driver upload page** | `FleetPulse/app/driver-upload/[loadId]/page.tsx` | **Public page** (no auth) — driver opens link, sees requested doc types, uploads files per type via `POST /api/driver-upload/[loadId]` |
-| **Driver upload API** | `FleetPulse/app/api/driver-upload/[loadId]/route.ts` | Public POST handler — validates load.carrier_id === cid param (UUID as security token); service role uploads file to `load-documents` storage; inserts into `documents` table |
+| **Load detail** | `FleetPulse/app/loads/[loadId]/page.tsx` | **Two-tab doc section:** "Upload Paperwork" (doc type picker + `UploadButton` → carrier uploads directly to Supabase Storage) and "Request from Driver" (chip-select doc types → "Generate Driver Link" → calls shared backend API → returns existing dispatcher-app magic link). Dispatcher-requested items still shown when present. |
 | `UploadButton` | `FleetPulse/components/UploadButton.tsx` | Extended: supports `documentRequestId` = undefined; inserts `documents` record with null request_id for carrier-initiated uploads |
-| Middleware | `FleetPulse/middleware.ts` | `/driver-upload/*` and `/api/driver-upload/*` excluded from auth redirect |
-| Server Supabase | `FleetPulse/lib/supabase-server.ts` | Added `createServiceSupabaseClient()` using `SUPABASE_SERVICE_ROLE_KEY` |
-| Env | `FleetPulse/.env.example` | Added `SUPABASE_SERVICE_ROLE_KEY` (server-only, never exposed to browser) |
+| Env | `FleetPulse/.env.example` | `NEXT_PUBLIC_API_BASE=http://localhost:8000/api/v1` — points to FastAPI backend |
 | Types | `FleetPulse/lib/types.ts` | Added `InvoiceStatus`, `InvoiceRow`, `invoices` table definition |
 
-**Data access:** All queries use `createBrowserSupabaseClient()` directly — no FastAPI involved. API routes use `createServiceSupabaseClient()` for service-role operations.
+**Data access:** All Supabase queries use `createBrowserSupabaseClient()` directly. Magic link generation calls the shared FastAPI backend at `NEXT_PUBLIC_API_BASE` using the carrier's Supabase session token as the Bearer.
 **Invoice RLS:** `carrier_self_invoice_read` policy allows carriers to SELECT invoices where `carrier_id = JWT claim.carrier_id`.
-**Driver link security:** URL encodes `cid` (carrier UUID) — API route verifies `load.carrier_id === cid` before accepting uploads. Not cryptographic but UUID is unguessable.
-**Driver link format:** `{APP_URL}/driver-upload/{loadId}?types=BOL,POD&cid={carrierId}` — fully self-contained, no DB token row needed.
-**Storage bucket:** `load-documents` (existing) — driver uploads go to `{carrierId}/{loadId}/driver/{docType}_{ts}.ext`.
+**Magic link flow:** carrier selects doc types → JS looks up invoice_id for the load → `POST /api/v1/paperwork/requests` with carrier Bearer token → backend creates `invoice_document_requests` row → returns `magic_link` pointing to **existing** dispatcher app `/upload/[token]` page — no duplicate upload page.
+**Storage bucket:** `load-documents` (existing) — carrier direct uploads go to `{userId}/{loadId}/{docType}_{ts}.ext`.
 **Nav items:** Home (`/dashboard`) · Loads (`/loads`) · Invoices (`/invoices`) · Docs (`/compliance`)
 
 ---
@@ -426,7 +421,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Env var | `DISPATCHER_URL` | Defaults to `http://localhost:3001` |
 
 **API endpoints:**
-- `POST /api/v1/paperwork/requests` — auth — create request, returns `{ magic_link, token, doc_types, expires_at }`
+- `POST /api/v1/paperwork/requests` — **any authenticated user** (dispatcher or carrier) — create request, returns `{ magic_link, token, doc_types, expires_at }`; when caller has no `organization_id` (carrier role), inherits it from the invoice row
 - `GET /api/v1/paperwork/upload/{token}` — **public** — validate token, returns invoice context
 - `POST /api/v1/paperwork/upload/{token}/files` — **public** — multipart (file + doc_type)
 - `POST /api/v1/paperwork/invoices/{id}/files` — dispatcher auth — direct upload (multipart)
