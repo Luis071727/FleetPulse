@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-05 (Invoice collection workflow added to FleetPulse carrier portal)
+Last updated: 2026-04-05 (Carrier-initiated doc upload + driver magic link in FleetPulse loads)
 
 ---
 
@@ -356,15 +356,24 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Layer | File | Notes |
 |-------|------|-------|
 | Page | `FleetPulse/app/dashboard/page.tsx` | Carrier's dashboard — fetches loads + invoices + doc requests in parallel; KPI strip (Total Earned, Outstanding, In Transit); Pending Actions section; Active Loads section |
-| Navigation | `FleetPulse/components/NavBar.tsx` | Displays user email, logout; nav items: Home / Loads / Invoices / Docs |
-| Invoices page | `FleetPulse/app/invoices/page.tsx` | **New** — carrier's invoice list; expandable rows with detail; Outstanding/Earned/Total KPIs; status badges |
-| Loads page | `FleetPulse/app/loads/page.tsx` | Split into Active (logged/in_transit) and History (delivered/cancelled); status pills; rate display; links to load detail |
+| Navigation | `FleetPulse/components/NavBar.tsx` | Nav items: Home / Loads / Invoices / Docs (Receipt icon); Lucide icons |
+| Invoices page | `FleetPulse/app/invoices/page.tsx` | Carrier's invoice list; expandable rows with detail; Outstanding/Earned/Total KPIs; status badges; links to Loads for paperwork |
+| Loads list | `FleetPulse/app/loads/page.tsx` | Split into Active (logged/in_transit) and History (delivered/cancelled); status pills; rate display; links to load detail |
+| **Load detail** | `FleetPulse/app/loads/[loadId]/page.tsx` | **Two-tab doc section:** "Upload Paperwork" (doc type picker + `UploadButton` → carrier uploads directly) and "Request from Driver" (chip-select doc types → "Generate Driver Link" → shareable URL → copy button). Dispatcher-requested items still shown when present. |
+| **Driver upload page** | `FleetPulse/app/driver-upload/[loadId]/page.tsx` | **Public page** (no auth) — driver opens link, sees requested doc types, uploads files per type via `POST /api/driver-upload/[loadId]` |
+| **Driver upload API** | `FleetPulse/app/api/driver-upload/[loadId]/route.ts` | Public POST handler — validates load.carrier_id === cid param (UUID as security token); service role uploads file to `load-documents` storage; inserts into `documents` table |
+| `UploadButton` | `FleetPulse/components/UploadButton.tsx` | Extended: supports `documentRequestId` = undefined; inserts `documents` record with null request_id for carrier-initiated uploads |
+| Middleware | `FleetPulse/middleware.ts` | `/driver-upload/*` and `/api/driver-upload/*` excluded from auth redirect |
+| Server Supabase | `FleetPulse/lib/supabase-server.ts` | Added `createServiceSupabaseClient()` using `SUPABASE_SERVICE_ROLE_KEY` |
+| Env | `FleetPulse/.env.example` | Added `SUPABASE_SERVICE_ROLE_KEY` (server-only, never exposed to browser) |
 | Types | `FleetPulse/lib/types.ts` | Added `InvoiceStatus`, `InvoiceRow`, `invoices` table definition |
 
-**Data access:** All queries use `createBrowserSupabaseClient()` directly — no FastAPI involved.
+**Data access:** All queries use `createBrowserSupabaseClient()` directly — no FastAPI involved. API routes use `createServiceSupabaseClient()` for service-role operations.
 **Invoice RLS:** `carrier_self_invoice_read` policy allows carriers to SELECT invoices where `carrier_id = JWT claim.carrier_id`.
-**Invoice documents:** `invoice_documents` table is org-only RLS — carriers cannot query it directly. The invoices page notes to use the magic link sent by the dispatcher for doc upload.
-**Nav items:** Home (`/dashboard`) · Loads (`/loads`) · Invoices (`/invoices`) · Docs (`/compliance`) — all using Lucide icons.
+**Driver link security:** URL encodes `cid` (carrier UUID) — API route verifies `load.carrier_id === cid` before accepting uploads. Not cryptographic but UUID is unguessable.
+**Driver link format:** `{APP_URL}/driver-upload/{loadId}?types=BOL,POD&cid={carrierId}` — fully self-contained, no DB token row needed.
+**Storage bucket:** `load-documents` (existing) — driver uploads go to `{carrierId}/{loadId}/driver/{docType}_{ts}.ext`.
+**Nav items:** Home (`/dashboard`) · Loads (`/loads`) · Invoices (`/invoices`) · Docs (`/compliance`)
 
 ---
 
