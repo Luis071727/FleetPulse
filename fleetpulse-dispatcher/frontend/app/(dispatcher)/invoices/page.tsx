@@ -19,6 +19,7 @@ export default function InvoicePage() {
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState("days_outstanding");
   const [statusFilter, setStatusFilter] = useState("");
+  const [hidePaid, setHidePaid] = useState(true);
   const [draftingAll, setDraftingAll] = useState(false);
   const [showAddInvoice, setShowAddInvoice] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
@@ -138,7 +139,7 @@ export default function InvoicePage() {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
         {["", "pending", "sent", "paid", "shortpaid", "claim", "overdue"].map((s) => (
           <button
             key={s}
@@ -161,9 +162,30 @@ export default function InvoicePage() {
         </select>
       </div>
 
-      <p style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
-        {loading ? "Loading…" : `${total} invoice${total !== 1 ? "s" : ""}`}
-      </p>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+        <button
+          type="button"
+          onClick={() => setHidePaid((v) => !v)}
+          style={{
+            fontSize: 12, padding: "4px 12px", borderRadius: 20, cursor: "pointer",
+            border: `1px solid ${hidePaid ? "var(--blue)" : "var(--border)"}`,
+            background: hidePaid ? "rgba(56,189,248,0.1)" : "transparent",
+            color: hidePaid ? "var(--blue)" : "var(--mist)",
+          }}
+        >
+          {hidePaid ? "✓ Hiding paid" : "○ Show paid"}
+        </button>
+        <a href="/reports" style={{ fontSize: 12, color: "var(--mist)", textDecoration: "none" }}>
+          Paid history → Monthly Reports
+        </a>
+        <p style={{ fontSize: 12, color: "#64748b", margin: 0, marginLeft: "auto" }}>
+          {loading ? "Loading…" : (() => {
+            const displayed = hidePaid ? invoices.filter((i) => (i.status as string) !== "paid") : invoices;
+            const hidden = invoices.length - displayed.length;
+            return `${displayed.length} invoice${displayed.length !== 1 ? "s" : ""}${hidden > 0 ? ` (${hidden} paid hidden)` : ""}`;
+          })()}
+        </p>
+      </div>
 
       <div className="fp-table-wrap">
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -179,7 +201,7 @@ export default function InvoicePage() {
           </tr>
         </thead>
         <tbody>
-          {invoices.map((inv) => (
+          {(hidePaid ? invoices.filter((i) => (i.status as string) !== "paid") : invoices).map((inv) => (
             <InvoiceRow
               key={inv.id as string}
               invoice={inv}

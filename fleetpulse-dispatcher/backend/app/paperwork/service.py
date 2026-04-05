@@ -156,6 +156,10 @@ class PaperworkService:
         # Check if all requested doc_types are now fulfilled
         self._maybe_fulfill_request(req, sb)
 
+        # POD received → advance invoice from pending to sent (ready for broker)
+        if doc_type == "POD":
+            self._advance_invoice_on_pod(invoice_id, sb)
+
         return doc
 
     def list_documents(self, invoice_id: str, org_id: str) -> dict:
@@ -290,6 +294,23 @@ class PaperworkService:
 
 
     # ── private ───────────────────────────────────────────────────────────────
+
+    def _advance_invoice_on_pod(self, invoice_id: str, sb) -> None:
+        """When POD is uploaded, advance invoice from 'pending' → 'sent'."""
+        try:
+            result = (
+                sb.table("invoices")
+                .select("id, status")
+                .eq("id", invoice_id)
+                .maybe_single()
+                .execute()
+            )
+            inv = result.data if result else None
+            if inv and inv.get("status") == "pending":
+                sb.table("invoices").update({"status": "sent"}).eq("id", invoice_id).execute()
+                logger.info("Invoice %s advanced to 'sent' after POD upload", invoice_id)
+        except Exception as exc:
+            logger.warning("Could not auto-advance invoice %s on POD upload: %s", invoice_id, exc)
 
     def _maybe_fulfill_request(self, req: dict, sb) -> None:
         requested_types = set(req.get("doc_types") or [])
