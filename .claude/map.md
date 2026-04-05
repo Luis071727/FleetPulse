@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-05 (Monthly Reports page added)
+Last updated: 2026-04-05 (Invoice packet collection workflow P1–P5)
 
 ---
 
@@ -140,7 +140,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 | Layer | File | Notes |
 |-------|------|-------|
-| Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/invoices/page.tsx` | Lists, filters, actions |
+| Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/invoices/page.tsx` | Lists, filters, actions; **hides paid invoices by default** (`hidePaid` state = true); toggle chip "✓ Hiding paid / ○ Show paid"; "Paid history → Monthly Reports" link |
 | Row component | `components/InvoiceRow.tsx` | Invoice table row with actions |
 | Follow-up modal | `components/FollowUpModal.tsx` | AI-drafted follow-up email (tone escalation) |
 | Add modal | `components/AddInvoiceModal.tsx` | Manual invoice creation |
@@ -152,8 +152,9 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | DB table | `invoices` | id, organization_id, load_id, carrier_id, broker_id, amount, status, followups_sent, invoice_number, issued_date, due_date, customer_ap_email, deleted_at |
 | Trigger | `supabase/functions/invoice_on_load.sql` | DB-level auto-create on load insert |
 
-**Invoice statuses:** `pending` → `sent` → `paid` / `overdue`
+**Invoice statuses:** `pending` → `sent` → `paid` / `overdue` / `shortpaid` / `claim`
 **Days outstanding:** computed from `issued_date` or load `delivery_date` vs today
+**Auto-advance (P4):** Backend — when POD doc uploaded via `PaperworkService.upload_file()`, calls `_advance_invoice_on_pod()` → advances invoice `pending → sent` automatically
 
 ---
 
@@ -161,7 +162,31 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 | Layer | File | Notes |
 |-------|------|-------|
-| Page | `fleetpulse-dispatcher/frontend/app/(portal)/overview/invoices/page.tsx` | Carrier's own invoices |
+| Page | `fleetpulse-dispatcher/frontend/app/(portal)/overview/invoices/page.tsx` | Carrier's own invoices — clickable rows expand inline `InvoiceDetailPanel`; hide-paid toggle (default OFF); outstanding total header |
+| `InvoiceDetailPanel` | inline in invoices/page.tsx | Fetches `listInvoiceDocuments(id)` on open; shows `DocBadge` per requested doc type; uploaded file list with View (signed URL) links |
+| `DocBadge` | inline component | Green ✓ = uploaded, grey ○ = not yet; `DOC_TYPE_LABELS` map for human-readable names |
+
+**Invoice statuses shown:** pending / sent / paid / overdue / shortpaid / claim
+**Days outstanding:** color-coded — green <30d, amber 30–60d, red >60d
+
+---
+
+### CARRIER PORTAL OVERVIEW (Dispatcher App — `/overview`)
+
+> Carrier-facing pages embedded in the dispatcher app under `(portal)` route group.
+
+| Layer | File | Notes |
+|-------|------|-------|
+| **Dashboard** | `fleetpulse-dispatcher/frontend/app/(portal)/overview/page.tsx` | 4 KPI tiles (Total Earned, Outstanding, Avg Net RPM, In Transit); payment status breakdown; top 5 profitable loads; recent 5 invoices |
+| **Invoices** | `fleetpulse-dispatcher/frontend/app/(portal)/overview/invoices/page.tsx` | See INVOICES — Carrier Portal above |
+| **Loads** | `fleetpulse-dispatcher/frontend/app/(portal)/overview/loads/page.tsx` | Active/history split; `DocProgress` bar; invoice status badge; route + RC ref display |
+| **Insurance** | `fleetpulse-dispatcher/frontend/app/(portal)/overview/insurance/page.tsx` | Carrier's insurance certificates |
+
+**`KPITile`** (inline component in overview/page.tsx): label, value, sub-label, color prop.
+**`DocProgress`** (inline in loads/page.tsx): horizontal bar + "X/Y docs" label; color green (all done) / amber (partial) / grey (none requested); uses `l.docs_uploaded ?? 0` and `l.docs_requested ?? 0` (backend fields not yet returned — shows 0/0 until wired).
+**Payment status breakdown:** `Object.entries(paymentSummary)` keyed by status string → colored count tiles.
+**Top 5 profitable loads:** sort by `net_profit` desc on delivered loads only.
+**`getUser()`** returns `carrier_id` used to scope all portal API calls.
 
 ---
 
@@ -370,7 +395,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Layer | File | Notes |
 |-------|------|-------|
 | DB tables | `invoice_document_requests`, `invoice_documents` | Migration: `20260329_invoice_paperwork.sql`; grants: `20260329_invoice_paperwork_grants.sql`; `issued_at`/`expires_at` added via `20260331_doc_date_fields.sql` |
-| Backend service | `backend/app/paperwork/service.py` | `PaperworkService` — create_request, get_request_by_token, upload_file, upload_file_direct, list_documents (signed URLs), **delete_document**, **update_document** |
+| Backend service | `backend/app/paperwork/service.py` | `PaperworkService` — create_request, get_request_by_token, upload_file, upload_file_direct, list_documents (signed URLs), **delete_document**, **update_document**, **`_advance_invoice_on_pod()`** |
 | Backend routes | `backend/app/paperwork/routes.py` | 6 endpoints (see below) |
 | Router registration | `backend/app/main.py` | `paperwork_router` included in api_v1 |
 | API calls | `services/api.ts` | `requestPaperwork`, `validateUploadToken`, `uploadInvoiceFile`, `listInvoiceDocuments`, `uploadInvoiceFileDirect`, **`updateInvoiceDocument`**, **`deleteInvoiceDocument`** |
