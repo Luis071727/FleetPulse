@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-05 (Invoice packet collection workflow P1–P5)
+Last updated: 2026-04-05 (Invoice collection workflow added to FleetPulse carrier portal)
 
 ---
 
@@ -351,12 +351,20 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 ---
 
-### DASHBOARD — Carrier Portal
+### DASHBOARD — Carrier Portal (FleetPulse app, port 3000)
 
 | Layer | File | Notes |
 |-------|------|-------|
-| Page | `FleetPulse/app/dashboard/page.tsx` | Carrier's own dashboard |
-| Navigation | `FleetPulse/components/NavBar.tsx` | Displays user email, logout |
+| Page | `FleetPulse/app/dashboard/page.tsx` | Carrier's dashboard — fetches loads + invoices + doc requests in parallel; KPI strip (Total Earned, Outstanding, In Transit); Pending Actions section; Active Loads section |
+| Navigation | `FleetPulse/components/NavBar.tsx` | Displays user email, logout; nav items: Home / Loads / Invoices / Docs |
+| Invoices page | `FleetPulse/app/invoices/page.tsx` | **New** — carrier's invoice list; expandable rows with detail; Outstanding/Earned/Total KPIs; status badges |
+| Loads page | `FleetPulse/app/loads/page.tsx` | Split into Active (logged/in_transit) and History (delivered/cancelled); status pills; rate display; links to load detail |
+| Types | `FleetPulse/lib/types.ts` | Added `InvoiceStatus`, `InvoiceRow`, `invoices` table definition |
+
+**Data access:** All queries use `createBrowserSupabaseClient()` directly — no FastAPI involved.
+**Invoice RLS:** `carrier_self_invoice_read` policy allows carriers to SELECT invoices where `carrier_id = JWT claim.carrier_id`.
+**Invoice documents:** `invoice_documents` table is org-only RLS — carriers cannot query it directly. The invoices page notes to use the magic link sent by the dispatcher for doc upload.
+**Nav items:** Home (`/dashboard`) · Loads (`/loads`) · Invoices (`/invoices`) · Docs (`/compliance`) — all using Lucide icons.
 
 ---
 
