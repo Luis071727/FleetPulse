@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { clearAuth, getUser } from "../../services/api";
-import { BarChart3, Truck, Package, DollarSign, Shield, Fuel, Zap, Menu, SearchTruck } from "../../components/icons";
+import { BarChart3, Truck, Package, DollarSign, Shield, Fuel, Zap, Menu, SearchTruck, FileText } from "../../components/icons";
 
 type NavItem = { label: string; href: string; icon: React.ReactNode; badge?: string };
 
@@ -13,6 +13,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Find Carriers", href: "/find-carriers", icon: <SearchTruck size={16} />, badge: "New" },
   { label: "Loads", href: "/loads", icon: <Package size={16} /> },
   { label: "Invoices", href: "/invoices", icon: <DollarSign size={16} /> },
+  { label: "Reports", href: "/reports", icon: <FileText size={16} /> },
   { label: "Insurance IQ", href: "/insurance", icon: <Shield size={16} /> },
   { label: "IFTA", href: "/ifta", icon: <Fuel size={16} /> },
 ];
