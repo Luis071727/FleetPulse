@@ -5,6 +5,7 @@ export type DocumentRequestType = "BOL" | "POD" | "RATE_CON" | "INVOICE" | "OTHE
 export type ComplianceDocumentType = "INSURANCE" | "CDL" | "REGISTRATION" | "INSPECTION" | "OTHER";
 export type ComplianceStatus = "active" | "expired" | "expiring_soon";
 export type SenderRole = "dispatcher" | "carrier";
+export type InvoiceStatus = "pending" | "sent" | "paid" | "overdue" | "shortpaid" | "claim";
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
@@ -199,6 +200,42 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["carrier_invitations"]["Insert"]>;
         Relationships: [];
       };
+      invoices: {
+        Row: {
+          id: string;
+          organization_id: string | null;
+          load_id: string | null;
+          carrier_id: string | null;
+          broker_id: string | null;
+          amount: number | null;
+          status: InvoiceStatus;
+          invoice_number: string | null;
+          issued_date: string | null;
+          due_date: string | null;
+          customer_ap_email: string | null;
+          followups_sent: number | null;
+          deleted_at: string | null;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id?: string | null;
+          load_id?: string | null;
+          carrier_id?: string | null;
+          broker_id?: string | null;
+          amount?: number | null;
+          status?: InvoiceStatus;
+          invoice_number?: string | null;
+          issued_date?: string | null;
+          due_date?: string | null;
+          customer_ap_email?: string | null;
+          followups_sent?: number | null;
+          deleted_at?: string | null;
+          created_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["invoices"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -217,4 +254,5 @@ export type DocumentRequestRow = Database["public"]["Tables"]["document_requests
 export type DocumentRow = Database["public"]["Tables"]["documents"]["Row"];
 export type ComplianceDocumentRow = Database["public"]["Tables"]["compliance_documents"]["Row"];
 export type MessageRow = Database["public"]["Tables"]["messages"]["Row"];
+export type InvoiceRow = Database["public"]["Tables"]["invoices"]["Row"];
 

@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, FileText, Truck, Zap } from "lucide-react";
+import { Home, FileText, Truck, Zap, Receipt } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Home", icon: Home },
   { href: "/loads", label: "Loads", icon: Truck },
+  { href: "/invoices", label: "Invoices", icon: Receipt },
   { href: "/compliance", label: "Docs", icon: FileText },
 ];
 

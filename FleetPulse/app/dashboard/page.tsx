@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import LoadCard from "@/components/LoadCard";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
-import type { CarrierRow, DocumentRequestRow, LoadRow } from "@/lib/types";
+import type { CarrierRow, DocumentRequestRow, InvoiceRow, LoadRow } from "@/lib/types";
 
 export default function DashboardPage() {
   const [supabase] = useState(() =>
@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const [carrier, setCarrier] = useState<CarrierRow | null>(null);
   const [loads, setLoads] = useState<LoadRow[]>([]);
   const [pendingRequests, setPendingRequests] = useState<DocumentRequestRow[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,6 +81,16 @@ export default function DashboardPage() {
       } else {
         setPendingRequests((requestsResult.data || []) as DocumentRequestRow[]);
       }
+
+      const invoicesResult = await supabase
+        .from("invoices")
+        .select("id, amount, status, issued_date")
+        .eq("carrier_id", carrierData.id)
+        .is("deleted_at", null);
+      if (!invoicesResult.error) {
+        setInvoices((invoicesResult.data || []) as InvoiceRow[]);
+      }
+
       setLoading(false);
     };
 
@@ -93,6 +104,14 @@ export default function DashboardPage() {
     (load) => !pendingRequests.some((request) => request.load_id === load.id),
   );
 
+  const totalEarned = invoices.filter((i) => i.status === "paid").reduce((s, i) => s + (i.amount ?? 0), 0);
+  const outstanding = invoices.filter((i) => i.status !== "paid").reduce((s, i) => s + (i.amount ?? 0), 0);
+  const inTransit = loads.filter((l) => l.status === "in_transit").length;
+
+  function fmtCurrency(n: number) {
+    return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
   if (loading) return <p className="text-sm text-brand-slate-light">Loading dashboard...</p>;
   if (error) return <p className="text-sm text-brand-danger">{error}</p>;
 
@@ -103,6 +122,24 @@ export default function DashboardPage() {
         <h1 className="mt-2 text-3xl font-semibold text-brand-slate">
           {carrier?.company_name || carrier?.name || "Your loads, docs, and updates"}
         </h1>
+      </div>
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="card p-4">
+          <p className="text-xs text-brand-slate-light">Total Earned</p>
+          <p className="mt-1 font-mono text-lg font-semibold text-green-400">{fmtCurrency(totalEarned)}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-xs text-brand-slate-light">Outstanding</p>
+          <p className={`mt-1 font-mono text-lg font-semibold ${outstanding > 0 ? "text-red-400" : "text-brand-slate-light"}`}>
+            {fmtCurrency(outstanding)}
+          </p>
+        </div>
+        <div className="card p-4 col-span-2 sm:col-span-1">
+          <p className="text-xs text-brand-slate-light">In Transit</p>
+          <p className="mt-1 font-mono text-lg font-semibold text-blue-400">{inTransit}</p>
+        </div>
       </div>
 
       <section className="space-y-4">
