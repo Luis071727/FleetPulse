@@ -430,12 +430,12 @@ export default function LoadDetailPage() {
                           {(req.doc_types as string[]).join(", ")}
                         </span>
                       </div>
-                      {isFulfilled && req.fulfilled_at && (
+                      {isFulfilled && Boolean(req.fulfilled_at) && (
                         <p className="text-xs text-green-400">
                           Completed {new Date(req.fulfilled_at as string).toLocaleDateString()}
                         </p>
                       )}
-                      {!isFulfilled && !isExpired && req.expires_at && (
+                      {!isFulfilled && !isExpired && Boolean(req.expires_at) && (
                         <p className="text-xs text-brand-slate-light">
                           Link expires {new Date(req.expires_at as string).toLocaleDateString()}
                         </p>
