@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-05 (Magic link consolidated onto shared dispatcher paperwork API)
+Last updated: 2026-04-06 (Carrier paperwork visibility + backend org_id fallback for carrier callers)
 
 ---
 
@@ -359,7 +359,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Navigation | `FleetPulse/components/NavBar.tsx` | Nav items: Home / Loads / Invoices / Docs (Receipt icon); Lucide icons |
 | Invoices page | `FleetPulse/app/invoices/page.tsx` | Carrier's invoice list; expandable rows with detail; Outstanding/Earned/Total KPIs; status badges; links to Loads for paperwork |
 | Loads list | `FleetPulse/app/loads/page.tsx` | Split into Active (logged/in_transit) and History (delivered/cancelled); status pills; rate display; links to load detail |
-| **Load detail** | `FleetPulse/app/loads/[loadId]/page.tsx` | **Two-tab doc section:** "Upload Paperwork" (doc type picker + `UploadButton` → carrier uploads directly to Supabase Storage) and "Request from Driver" (chip-select doc types → "Generate Driver Link" → calls shared backend API → returns existing dispatcher-app magic link). Dispatcher-requested items still shown when present. |
+| **Load detail** | `FleetPulse/app/loads/[loadId]/page.tsx` | **Two-tab doc section:** "Upload Paperwork" (doc type picker + `UploadButton`) and "Request from Driver" (chip-select doc types → "Generate Driver Link" → shared backend API). **Submitted Documents section:** shows all `invoice_document_requests` (Awaiting driver / Completed / Expired badges + expiry date) and `invoice_documents` (filename, doc type chip, View link). Refresh button + auto-refresh after upload or link generation. |
 | `UploadButton` | `FleetPulse/components/UploadButton.tsx` | Extended: supports `documentRequestId` = undefined; inserts `documents` record with null request_id for carrier-initiated uploads |
 | Env | `FleetPulse/.env.example` | `NEXT_PUBLIC_API_BASE=http://localhost:8000/api/v1` — points to FastAPI backend |
 | Types | `FleetPulse/lib/types.ts` | Added `InvoiceStatus`, `InvoiceRow`, `invoices` table definition |
@@ -422,6 +422,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 **API endpoints:**
 - `POST /api/v1/paperwork/requests` — **any authenticated user** (dispatcher or carrier) — create request, returns `{ magic_link, token, doc_types, expires_at }`; when caller has no `organization_id` (carrier role), inherits it from the invoice row
+- `GET /api/v1/paperwork/invoices/{id}/documents` — **any authenticated user** — same org_id fallback; carriers can call to get their own `{ documents[], requests[] }`
 - `GET /api/v1/paperwork/upload/{token}` — **public** — validate token, returns invoice context
 - `POST /api/v1/paperwork/upload/{token}/files` — **public** — multipart (file + doc_type)
 - `POST /api/v1/paperwork/invoices/{id}/files` — dispatcher auth — direct upload (multipart)
