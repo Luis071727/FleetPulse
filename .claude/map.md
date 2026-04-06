@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-06 (Carrier paperwork visibility + backend org_id fallback for carrier callers)
+Last updated: 2026-04-06 (Cross-reference lanes + load numbers between invoices and loads pages)
 
 ---
 
@@ -357,8 +357,8 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 |-------|------|-------|
 | Page | `FleetPulse/app/dashboard/page.tsx` | Carrier's dashboard — fetches loads + invoices + doc requests in parallel; KPI strip (Total Earned, Outstanding, In Transit); Pending Actions section; Active Loads section |
 | Navigation | `FleetPulse/components/NavBar.tsx` | Nav items: Home / Loads / Invoices / Docs (Receipt icon); Lucide icons |
-| Invoices page | `FleetPulse/app/invoices/page.tsx` | Carrier's invoice list; expandable rows with detail; Outstanding/Earned/Total KPIs; status badges; links to Loads for paperwork |
-| Loads list | `FleetPulse/app/loads/page.tsx` | Split into Active (logged/in_transit) and History (delivered/cancelled); status pills; rate display; links to load detail |
+| Invoices page | `FleetPulse/app/invoices/page.tsx` | Carrier's invoice list; select joins `loads(load_number, origin, destination)`; row shows lane (origin → destination) as primary identifier + `Load #number`; expanded detail has Lane row; Outstanding/Earned/Total KPIs; status badges; links to Loads for paperwork |
+| Loads list | `FleetPulse/app/loads/page.tsx` | Split into Active (logged/in_transit) and History (delivered/cancelled); fetches invoices in parallel, builds `Map<load_id, invoice_number>`; shows invoice # (amber) next to load # on each card; status pills; rate display; links to load detail |
 | **Load detail** | `FleetPulse/app/loads/[loadId]/page.tsx` | **Two-tab doc section:** "Upload Paperwork" (doc type picker + `UploadButton`) and "Request from Driver" (chip-select doc types → "Generate Driver Link" → shared backend API). **Submitted Documents section:** shows all `invoice_document_requests` (Awaiting driver / Completed / Expired badges + expiry date) and `invoice_documents` (filename, doc type chip, View link). Refresh button + auto-refresh after upload or link generation. |
 | `UploadButton` | `FleetPulse/components/UploadButton.tsx` | Extended: supports `documentRequestId` = undefined; inserts `documents` record with null request_id for carrier-initiated uploads |
 | Env | `FleetPulse/.env.example` | `NEXT_PUBLIC_API_BASE=http://localhost:8000/api/v1` — points to FastAPI backend |
