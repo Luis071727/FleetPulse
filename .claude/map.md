@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-06 (Cross-reference lanes + load numbers between invoices and loads pages)
+Last updated: 2026-04-06 (Pending Actions redesign — 3 typed action categories; invoice send open to carriers)
 
 ---
 
@@ -155,6 +155,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 **Invoice statuses:** `pending` → `sent` → `paid` / `overdue` / `shortpaid` / `claim`
 **Days outstanding:** computed from `issued_date` or load `delivery_date` vs today
 **Auto-advance (P4):** Backend — when POD doc uploaded via `PaperworkService.upload_file()`, calls `_advance_invoice_on_pod()` → advances invoice `pending → sent` automatically
+**`POST /{invoice_id}/send`:** Changed from `require_dispatcher` → `require_authenticated`; carriers can send their own invoices (ownership check via `carrier_id`); dispatchers use `organization_id` as before; AP email fallback queries load row via DB
 
 ---
 
@@ -355,7 +356,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 | Layer | File | Notes |
 |-------|------|-------|
-| Page | `FleetPulse/app/dashboard/page.tsx` | Carrier's dashboard — fetches loads + invoices + doc requests in parallel; KPI strip (Total Earned, Outstanding, In Transit); Pending Actions section; Active Loads section |
+| Page | `FleetPulse/app/dashboard/page.tsx` | Carrier's dashboard — fetches loads + invoices + compliance docs + paperwork in parallel; KPI strip (Total Earned, Outstanding, In Transit); **3-type Pending Actions**; Active Loads section |
 | Navigation | `FleetPulse/components/NavBar.tsx` | Nav items: Home / Loads / Invoices / Docs (Receipt icon); Lucide icons |
 | Invoices page | `FleetPulse/app/invoices/page.tsx` | Carrier's invoice list; select joins `loads(load_number, origin, destination)`; row shows lane (origin → destination) as primary identifier + `Load #number`; expanded detail has Lane row; Outstanding/Earned/Total KPIs; status badges; links to Loads for paperwork |
 | Loads list | `FleetPulse/app/loads/page.tsx` | Split into Active (logged/in_transit) and History (delivered/cancelled); fetches invoices in parallel, builds `Map<load_id, invoice_number>`; shows invoice # (amber) next to load # on each card; status pills; rate display; links to load detail |
@@ -364,11 +365,16 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Env | `FleetPulse/.env.example` | `NEXT_PUBLIC_API_BASE=http://localhost:8000/api/v1` — points to FastAPI backend |
 | Types | `FleetPulse/lib/types.ts` | Added `InvoiceStatus`, `InvoiceRow`, `invoices` table definition |
 
-**Data access:** All Supabase queries use `createBrowserSupabaseClient()` directly. Magic link generation calls the shared FastAPI backend at `NEXT_PUBLIC_API_BASE` using the carrier's Supabase session token as the Bearer.
+**Data access:** All Supabase queries use `createBrowserSupabaseClient()` directly. Pending paperwork + invoice send call FastAPI backend at `NEXT_PUBLIC_API_BASE` using the carrier's Supabase session token as the Bearer.
 **Invoice RLS:** `carrier_self_invoice_read` policy allows carriers to SELECT invoices where `carrier_id = JWT claim.carrier_id`.
 **Magic link flow:** carrier selects doc types → JS looks up invoice_id for the load → `POST /api/v1/paperwork/requests` with carrier Bearer token → backend creates `invoice_document_requests` row → returns `magic_link` pointing to **existing** dispatcher app `/upload/[token]` page — no duplicate upload page.
 **Storage bucket:** `load-documents` (existing) — carrier direct uploads go to `{userId}/{loadId}/{docType}_{ts}.ext`.
 **Nav items:** Home (`/dashboard`) · Loads (`/loads`) · Invoices (`/invoices`) · Docs (`/compliance`)
+
+**Pending Actions — 3 types (amber/orange/blue left border per type):**
+1. **Pending paperwork** (amber) — `GET /api/v1/paperwork/carrier/pending` with carrier Bearer token; shows lane, doc types, expiry; "Copy Link" copies magic_link to clipboard
+2. **Compliance expiring** (orange) — Supabase `compliance_documents` where `expires_at` between today and today+30d; shows doc label/type + days remaining; "Renew" links to `/compliance`
+3. **Invoices ready to send** (blue) — Supabase `invoices` with `status='pending'` + `loads(status, origin, destination, broker_name, customer_ap_email)` join; filtered client-side for `loads.status === 'delivered'`; "Send Invoice" → `POST /api/v1/invoices/{id}/send` → marks as sent → opens `mailto:` pre-filled with invoice details
 
 ---
 
@@ -422,6 +428,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 **API endpoints:**
 - `POST /api/v1/paperwork/requests` — **any authenticated user** (dispatcher or carrier) — create request, returns `{ magic_link, token, doc_types, expires_at }`; when caller has no `organization_id` (carrier role), inherits it from the invoice row
+- `GET /api/v1/paperwork/carrier/pending` — **any authenticated user with carrier_id** — returns all pending `invoice_document_requests` for the carrier's invoices, enriched with load lane info + magic_link; used by carrier portal dashboard Pending Actions
 - `GET /api/v1/paperwork/invoices/{id}/documents` — **any authenticated user** — same org_id fallback; carriers can call to get their own `{ documents[], requests[] }`
 - `GET /api/v1/paperwork/upload/{token}` — **public** — validate token, returns invoice context
 - `POST /api/v1/paperwork/upload/{token}/files` — **public** — multipart (file + doc_type)
