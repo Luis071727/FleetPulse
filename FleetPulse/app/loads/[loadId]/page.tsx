@@ -459,7 +459,7 @@ export default function LoadDetailPage() {
                       {doc.doc_type as string}
                     </span>
                   </div>
-                  {doc.file_url && (
+                  {Boolean(doc.file_url) && (
                     <a
                       href={doc.file_url as string}
                       target="_blank"
