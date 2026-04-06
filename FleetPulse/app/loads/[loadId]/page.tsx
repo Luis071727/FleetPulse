@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Copy, CheckCircle, Loader } from "lucide-react";
+import { Copy, CheckCircle, Loader, RefreshCw, FileText } from "lucide-react";
 
 import DocRequestItem from "@/components/DocRequestItem";
 import MessageThread from "@/components/MessageThread";
@@ -45,6 +45,12 @@ export default function LoadDetailPage() {
   const [generatingLink, setGeneratingLink] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Paperwork status state
+  const [invoiceId, setInvoiceId] = useState<string | null>(null);
+  const [paperworkDocs, setPaperworkDocs] = useState<Record<string, unknown>[]>([]);
+  const [paperworkRequests, setPaperworkRequests] = useState<Record<string, unknown>[]>([]);
+  const [fetchingDocs, setFetchingDocs] = useState(false);
 
   const refreshLoadContext = async () => {
     const loadId = params.loadId;
@@ -107,7 +113,42 @@ export default function LoadDetailPage() {
       setMessages((messagesResult.data || []) as MessageRow[]);
     }
 
+    // Fetch invoice ID so we can show paperwork status
+    const invResult = await supabase
+      .from("invoices")
+      .select("id")
+      .eq("load_id", loadId)
+      .eq("carrier_id", carrierData.id)
+      .maybeSingle();
+    const invId = (invResult.data as { id: string } | null)?.id ?? null;
+    setInvoiceId(invId);
+
     setLoading(false);
+
+    // Kick off paperwork status fetch (non-blocking)
+    if (invId) void fetchPaperworkStatus(invId);
+  };
+
+  const fetchPaperworkStatus = async (invId?: string) => {
+    const id = invId ?? invoiceId;
+    if (!id || !supabase) return;
+    setFetchingDocs(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
+      const res = await fetch(`${apiBase}/paperwork/invoices/${id}/documents`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) return;
+      const json = await res.json() as { data?: { documents?: Record<string, unknown>[]; requests?: Record<string, unknown>[] } };
+      setPaperworkDocs(json.data?.documents ?? []);
+      setPaperworkRequests(json.data?.requests ?? []);
+    } catch {
+      // silent — status panel is best-effort
+    } finally {
+      setFetchingDocs(false);
+    }
   };
 
   useEffect(() => {
@@ -156,6 +197,7 @@ export default function LoadDetailPage() {
       const link = json.data?.magic_link;
       if (!link) throw new Error("No link returned from server");
       setDriverLink(link);
+      void fetchPaperworkStatus(invoiceId ?? undefined);
     } catch (err) {
       setLinkError(err instanceof Error ? err.message : "Could not generate link");
     } finally {
@@ -270,7 +312,10 @@ export default function LoadDetailPage() {
                 docType={selectedDocType}
                 loadId={load.id}
                 label="Upload File"
-                onSuccess={() => void refreshLoadContext()}
+                onSuccess={() => {
+                  void refreshLoadContext();
+                  void fetchPaperworkStatus();
+                }}
               />
             </div>
           )}
@@ -345,6 +390,91 @@ export default function LoadDetailPage() {
           )}
         </div>
       </section>
+
+      {/* ── Paperwork Status ── */}
+      {(paperworkDocs.length > 0 || paperworkRequests.length > 0 || fetchingDocs) && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="section-title">Submitted Documents</h2>
+            <button
+              type="button"
+              onClick={() => void fetchPaperworkStatus()}
+              disabled={fetchingDocs}
+              className="flex items-center gap-1.5 text-xs text-brand-slate-light hover:text-brand-slate transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={12} className={fetchingDocs ? "animate-spin" : ""} />
+              Refresh
+            </button>
+          </div>
+
+          {/* Requests (driver link submissions) */}
+          {paperworkRequests.length > 0 && (
+            <div className="space-y-2">
+              {paperworkRequests.map((req) => {
+                const status = req.status as string;
+                const isFulfilled = status === "fulfilled";
+                const isExpired = status === "expired";
+                return (
+                  <div key={req.id as string} className="card px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
+                          isFulfilled ? "border-green-700 bg-green-950 text-green-400"
+                            : isExpired ? "border-brand-border bg-brand-surface text-brand-slate-light"
+                            : "border-amber-700/40 bg-brand-amber-light text-brand-amber"
+                        )}>
+                          {isFulfilled ? "Completed" : isExpired ? "Expired" : "Awaiting driver"}
+                        </span>
+                        <span className="text-xs text-brand-slate-light">
+                          {(req.doc_types as string[]).join(", ")}
+                        </span>
+                      </div>
+                      {isFulfilled && req.fulfilled_at && (
+                        <p className="text-xs text-green-400">
+                          Completed {new Date(req.fulfilled_at as string).toLocaleDateString()}
+                        </p>
+                      )}
+                      {!isFulfilled && !isExpired && req.expires_at && (
+                        <p className="text-xs text-brand-slate-light">
+                          Link expires {new Date(req.expires_at as string).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Uploaded files */}
+          {paperworkDocs.length > 0 && (
+            <div className="space-y-1.5">
+              {paperworkDocs.map((doc) => (
+                <div key={doc.id as string} className="flex items-center justify-between rounded-lg border border-brand-border bg-brand-surface px-3 py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText size={14} className="shrink-0 text-brand-amber" />
+                    <span className="truncate text-sm text-brand-slate">{doc.file_name as string}</span>
+                    <span className="shrink-0 rounded border border-brand-border px-1.5 py-0.5 font-mono text-[10px] text-brand-slate-light">
+                      {doc.doc_type as string}
+                    </span>
+                  </div>
+                  {doc.file_url && (
+                    <a
+                      href={doc.file_url as string}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-xs text-brand-amber hover:underline"
+                    >
+                      View
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="space-y-4">
         <div>

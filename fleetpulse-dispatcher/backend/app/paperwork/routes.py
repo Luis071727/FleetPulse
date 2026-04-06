@@ -203,7 +203,17 @@ def list_invoice_documents(
     invoice_id: str,
     user: CurrentUser = Depends(require_authenticated),
 ) -> ResponseEnvelope:
-    result = _service.list_documents(invoice_id=invoice_id, org_id=user.organization_id)
+    from app.config import get_supabase as _get_sb
+    org_id = user.organization_id
+    if not org_id:
+        try:
+            inv = _get_sb().table("invoices").select("organization_id").eq("id", invoice_id).maybe_single().execute()
+            org_id = (inv.data or {}).get("organization_id") if inv else None
+        except Exception:
+            pass
+        if not org_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Could not resolve organization for this invoice")
+    result = _service.list_documents(invoice_id=invoice_id, org_id=org_id)
     return ok(result)
 
 
