@@ -81,7 +81,82 @@ def create_paperwork_request(
     })
 
 
-# ── GET /paperwork/upload/{token} ── (public, no auth) ────────────────────────
+# ── GET /paperwork/carrier/pending ── (carrier: all pending requests) ─────────
+
+@router.get("/carrier/pending")
+def list_carrier_pending_paperwork(
+    user: CurrentUser = Depends(require_authenticated),
+) -> ResponseEnvelope:
+    """Return all pending invoice_document_requests for the authenticated carrier."""
+    if not user.carrier_id:
+        return ok([])  # dispatcher — not applicable here
+
+    sb = get_supabase()
+
+    # Fetch carrier's invoices
+    try:
+        inv_result = (
+            sb.table("invoices")
+            .select("id, load_id, invoice_number")
+            .eq("carrier_id", user.carrier_id)
+            .is_("deleted_at", "null")
+            .execute()
+        )
+        invoices = inv_result.data or []
+    except Exception:
+        return ok([])
+
+    if not invoices:
+        return ok([])
+
+    inv_map = {i["id"]: i for i in invoices}
+    inv_ids = list(inv_map.keys())
+
+    # Fetch pending requests for those invoices
+    try:
+        req_result = (
+            sb.table("invoice_document_requests")
+            .select("*")
+            .in_("invoice_id", inv_ids)
+            .eq("status", "pending")
+            .execute()
+        )
+        requests = req_result.data or []
+    except Exception:
+        return ok([])
+
+    if not requests:
+        return ok([])
+
+    # Enrich with load lane info
+    load_ids = list({inv_map[r["invoice_id"]]["load_id"] for r in requests if inv_map.get(r.get("invoice_id"), {}).get("load_id")})
+    loads_map: dict = {}
+    try:
+        if load_ids:
+            ld_result = sb.table("loads").select("id, load_number, origin, destination").in_("id", load_ids).execute()
+            loads_map = {ld["id"]: ld for ld in (ld_result.data or [])}
+    except Exception:
+        pass
+
+    dispatcher_url = getattr(settings, "dispatcher_url", "http://localhost:3001").rstrip("/")
+
+    return ok([
+        {
+            "request_id": req["id"],
+            "invoice_id": req["invoice_id"],
+            "invoice_number": inv_map.get(req["invoice_id"], {}).get("invoice_number"),
+            "load_id": inv_map.get(req["invoice_id"], {}).get("load_id"),
+            "load_number": loads_map.get(inv_map.get(req["invoice_id"], {}).get("load_id") or "", {}).get("load_number"),
+            "origin": loads_map.get(inv_map.get(req["invoice_id"], {}).get("load_id") or "", {}).get("origin", ""),
+            "destination": loads_map.get(inv_map.get(req["invoice_id"], {}).get("load_id") or "", {}).get("destination", ""),
+            "doc_types": req.get("doc_types", []),
+            "magic_link": f"{dispatcher_url}/upload/{req['token']}",
+            "expires_at": req.get("expires_at"),
+        }
+        for req in requests
+    ])
+
+
 
 @router.get("/upload/{token}")
 def validate_upload_token(token: str) -> ResponseEnvelope:

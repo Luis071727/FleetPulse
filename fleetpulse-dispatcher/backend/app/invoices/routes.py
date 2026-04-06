@@ -389,29 +389,49 @@ def update_invoice(
 @router.post("/{invoice_id}/send")
 def send_invoice(
     invoice_id: str,
-    user: CurrentUser = Depends(require_dispatcher),
+    user: CurrentUser = Depends(require_authenticated),
 ) -> ResponseEnvelope:
-    """Mark invoice as sent to the customer AP email."""
-    invoices = _get_invoices_mem()
-    inv = next((iv for iv in invoices if iv.get("id") == invoice_id and iv.get("organization_id") == user.organization_id), None)
+    """Mark invoice as sent to the customer AP email. Accessible by dispatchers and carriers."""
+    sb = get_supabase()
 
-    # Also check DB
+    # Build ownership filter based on role
+    is_dispatcher = user.role == "dispatcher_admin"
+
+    # Check DB
     db_inv = None
     try:
-        sb = get_supabase()
-        result = (
+        query = (
             sb.table("invoices")
             .select("*")
             .eq("id", invoice_id)
-            .eq("organization_id", user.organization_id)
             .is_("deleted_at", "null")
-            .maybe_single()
-            .execute()
         )
+        if is_dispatcher and user.organization_id:
+            query = query.eq("organization_id", user.organization_id)
+        elif user.carrier_id:
+            query = query.eq("carrier_id", user.carrier_id)
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        result = query.maybe_single().execute()
         if result and result.data:
             db_inv = result.data
+    except HTTPException:
+        raise
     except Exception:
         pass
+
+    # Also check in-memory
+    invoices = _get_invoices_mem()
+    inv = None
+    for iv in invoices:
+        if iv.get("id") != invoice_id:
+            continue
+        if is_dispatcher and iv.get("organization_id") == user.organization_id:
+            inv = iv
+            break
+        elif user.carrier_id and iv.get("carrier_id") == user.carrier_id:
+            inv = iv
+            break
 
     target = inv or db_inv
     if not target:
@@ -419,11 +439,18 @@ def send_invoice(
 
     ap_email = target.get("customer_ap_email") or ""
     if not ap_email:
-        # Try to pull from linked load
+        # Try to pull from linked load via DB
         load_id = target.get("load_id")
         if load_id:
+            try:
+                ld_result = sb.table("loads").select("customer_ap_email").eq("id", load_id).maybe_single().execute()
+                if ld_result and ld_result.data:
+                    ap_email = ld_result.data.get("customer_ap_email") or ""
+            except Exception:
+                pass
+        if not ap_email and is_dispatcher:
             loads = {ld.get("id"): ld for ld in _get_loads_mem() if ld.get("organization_id") == user.organization_id}
-            if load_id in loads:
+            if load_id and load_id in loads:
                 ap_email = loads[load_id].get("customer_ap_email") or ""
 
     updates = {
@@ -433,9 +460,8 @@ def send_invoice(
     }
 
     try:
-        sb = get_supabase()
         safe_execute(
-            sb.table("invoices").update(updates).eq("id", invoice_id).eq("organization_id", user.organization_id)
+            sb.table("invoices").update(updates).eq("id", invoice_id)
         )
     except Exception:
         pass
