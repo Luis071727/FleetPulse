@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase";
-import type { CarrierRow, LoadRow } from "@/lib/types";
+import type { CarrierRow, InvoiceRow, LoadRow } from "@/lib/types";
 
 const STATUS_LABEL: Record<string, string> = {
   logged: "Logged",
@@ -30,7 +30,7 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-function LoadRow({ load }: { load: LoadRow }) {
+function LoadRow({ load, invoiceNumber }: { load: LoadRow; invoiceNumber?: string | null }) {
   return (
     <Link
       href={`/loads/${load.id}`}
@@ -41,7 +41,8 @@ function LoadRow({ load }: { load: LoadRow }) {
           {load.origin} → {load.destination}
         </p>
         <div className="mt-1 flex flex-wrap gap-3 text-xs text-brand-slate-light">
-          {load.load_number && <span>#{load.load_number}</span>}
+          {load.load_number && <span>Load #{load.load_number}</span>}
+          {invoiceNumber && <span className="text-brand-amber/80">· {invoiceNumber}</span>}
           {load.pickup_date && <span>Pickup: {load.pickup_date}</span>}
           {load.delivery_date && <span>Delivery: {load.delivery_date}</span>}
         </div>
@@ -63,6 +64,7 @@ export default function LoadsPage() {
     typeof window === "undefined" ? null : createBrowserSupabaseClient(),
   );
   const [loads, setLoads] = useState<LoadRow[]>([]);
+  const [invoiceByLoadId, setInvoiceByLoadId] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,17 +88,25 @@ export default function LoadsPage() {
         return;
       }
 
-      const loadsResult = await supabase
-        .from("loads")
-        .select("*")
-        .eq("carrier_id", carrierData.id)
-        .order("pickup_date", { ascending: false });
+      const [loadsResult, invoicesResult] = await Promise.all([
+        supabase.from("loads").select("*").eq("carrier_id", carrierData.id).order("pickup_date", { ascending: false }),
+        supabase.from("invoices").select("load_id, invoice_number").eq("carrier_id", carrierData.id).is("deleted_at", null),
+      ]);
 
       if (loadsResult.error) {
         setError(loadsResult.error.message);
       } else {
         setLoads((loadsResult.data || []) as LoadRow[]);
       }
+
+      if (!invoicesResult.error) {
+        const map = new Map<string, string>();
+        for (const inv of (invoicesResult.data || []) as Pick<InvoiceRow, "load_id" | "invoice_number">[]) {
+          if (inv.load_id) map.set(inv.load_id, inv.invoice_number ?? "");
+        }
+        setInvoiceByLoadId(map);
+      }
+
       setLoading(false);
     };
 
@@ -126,7 +136,7 @@ export default function LoadsPage() {
               <div className="card p-4 text-sm text-brand-slate-light">No active loads.</div>
             ) : (
               <div className="space-y-2">
-                {activeLoads.map((load) => <LoadRow key={load.id} load={load} />)}
+                {activeLoads.map((load) => <LoadRow key={load.id} load={load} invoiceNumber={invoiceByLoadId.get(load.id)} />)}
               </div>
             )}
           </section>
@@ -135,7 +145,7 @@ export default function LoadsPage() {
             <section className="space-y-3">
               <h2 className="section-title">History</h2>
               <div className="space-y-2">
-                {historyLoads.map((load) => <LoadRow key={load.id} load={load} />)}
+                {historyLoads.map((load) => <LoadRow key={load.id} load={load} invoiceNumber={invoiceByLoadId.get(load.id)} />)}
               </div>
             </section>
           )}

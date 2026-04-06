@@ -6,6 +6,10 @@ import { createBrowserSupabaseClient } from "@/lib/supabase";
 import { cn } from "@/lib/cn";
 import type { CarrierRow, InvoiceRow } from "@/lib/types";
 
+type InvoiceWithLoad = InvoiceRow & {
+  loads?: { load_number: string | null; origin: string; destination: string } | null;
+};
+
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pending",
   sent: "Sent",
@@ -47,7 +51,7 @@ export default function InvoicesPage() {
   const [supabase] = useState(() =>
     typeof window === "undefined" ? null : createBrowserSupabaseClient(),
   );
-  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceWithLoad[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -78,7 +82,7 @@ export default function InvoicesPage() {
 
       const invoicesResult = await supabase
         .from("invoices")
-        .select("*")
+        .select("*, loads(load_number, origin, destination)")
         .eq("carrier_id", carrier.id)
         .is("deleted_at", null)
         .order("issued_date", { ascending: false });
@@ -86,7 +90,7 @@ export default function InvoicesPage() {
       if (invoicesResult.error) {
         setError(invoicesResult.error.message);
       } else {
-        setInvoices((invoicesResult.data || []) as InvoiceRow[]);
+        setInvoices((invoicesResult.data || []) as InvoiceWithLoad[]);
       }
       setLoading(false);
     };
@@ -152,13 +156,25 @@ export default function InvoicesPage() {
                   onClick={() => setExpandedId(expanded ? null : inv.id)}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-sm font-medium text-brand-slate">
-                        {inv.invoice_number ?? inv.id.slice(-8).toUpperCase()}
-                      </span>
-                      <StatusBadge status={inv.status} />
+                    <div className="min-w-0">
+                      {inv.loads ? (
+                        <p className="font-medium text-brand-slate truncate">
+                          {inv.loads.origin} → {inv.loads.destination}
+                        </p>
+                      ) : null}
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-xs text-brand-slate-light">
+                          {inv.invoice_number ?? `INV-${inv.id.slice(-8).toUpperCase()}`}
+                        </span>
+                        {inv.loads?.load_number && (
+                          <span className="font-mono text-xs text-brand-slate-light">
+                            · Load #{inv.loads.load_number}
+                          </span>
+                        )}
+                        <StatusBadge status={inv.status} />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 shrink-0">
                       <span className="font-mono text-sm font-semibold text-brand-slate">
                         {fmtCurrency(inv.amount)}
                       </span>
@@ -171,7 +187,6 @@ export default function InvoicesPage() {
                   <div className="mt-1 flex flex-wrap gap-3 text-xs text-brand-slate-light">
                     {inv.issued_date && <span>Issued: {inv.issued_date.slice(0, 10)}</span>}
                     {inv.due_date && <span>Due: {inv.due_date.slice(0, 10)}</span>}
-                    {inv.load_id && <span>Load: {inv.load_id.slice(-8).toUpperCase()}</span>}
                   </div>
                 </button>
 
@@ -179,6 +194,19 @@ export default function InvoicesPage() {
                 {expanded && (
                   <div className="border-t border-brand-border bg-brand-surface px-4 py-3 space-y-3">
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs">
+                      {inv.loads && (
+                        <div className="col-span-2 sm:col-span-4">
+                          <p className="text-brand-slate-light">Lane</p>
+                          <p className="mt-0.5 font-medium text-brand-slate">
+                            {inv.loads.origin} → {inv.loads.destination}
+                            {inv.loads.load_number && (
+                              <span className="ml-2 font-mono font-normal text-brand-slate-light">
+                                Load #{inv.loads.load_number}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      )}
                       <div>
                         <p className="text-brand-slate-light">Status</p>
                         <p className="mt-0.5 font-medium text-brand-slate">{STATUS_LABEL[inv.status] ?? inv.status}</p>
