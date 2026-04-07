@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-06 (Pending Actions redesign — 3 typed action categories; invoice send open to carriers)
+Last updated: 2026-04-07 (Load detail: upload timestamps + Driver/You source labels on submitted documents)
 
 ---
 
@@ -360,7 +360,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Navigation | `FleetPulse/components/NavBar.tsx` | Nav items: Home / Loads / Invoices / Docs (Receipt icon); Lucide icons |
 | Invoices page | `FleetPulse/app/invoices/page.tsx` | Carrier's invoice list; select joins `loads(load_number, origin, destination)`; row shows lane (origin → destination) as primary identifier + `Load #number`; expanded detail has Lane row; Outstanding/Earned/Total KPIs; status badges; links to Loads for paperwork |
 | Loads list | `FleetPulse/app/loads/page.tsx` | Split into Active (logged/in_transit) and History (delivered/cancelled); fetches invoices in parallel, builds `Map<load_id, invoice_number>`; shows invoice # (amber) next to load # on each card; status pills; rate display; links to load detail |
-| **Load detail** | `FleetPulse/app/loads/[loadId]/page.tsx` | **Two-tab doc section:** "Upload Paperwork" (doc type picker + `UploadButton`) and "Request from Driver" (chip-select doc types → "Generate Driver Link" → shared backend API). **Submitted Documents section:** shows all `invoice_document_requests` (Awaiting driver / Completed / Expired badges + expiry date) and `invoice_documents` (filename, doc type chip, View link). Refresh button + auto-refresh after upload or link generation. |
+| **Load detail** | `FleetPulse/app/loads/[loadId]/page.tsx` | **Two-tab doc section:** "Upload Paperwork" (doc type picker + `UploadButton`) and "Request from Driver" (chip-select doc types → "Generate Driver Link" → shared backend API). **Submitted Documents section:** request rows show "Sent [datetime]" (`created_at`), "Uploaded [datetime]" (`fulfilled_at`) or "Expires [datetime]" (`expires_at`); file rows show source badge ("Driver" amber / "You" blue, based on `request_id` presence) + `uploaded_at` as friendly relative timestamp. `fmtDateTime()` helper: "Today at H:MM", "Yesterday at H:MM", or "Mon DD at H:MM". Refresh button + auto-refresh after upload or link generation. |
 | `UploadButton` | `FleetPulse/components/UploadButton.tsx` | Extended: supports `documentRequestId` = undefined; inserts `documents` record with null request_id for carrier-initiated uploads |
 | Env | `FleetPulse/.env.example` | `NEXT_PUBLIC_API_BASE=http://localhost:8000/api/v1` — points to FastAPI backend |
 | Types | `FleetPulse/lib/types.ts` | Added `InvoiceStatus`, `InvoiceRow`, `invoices` table definition |
