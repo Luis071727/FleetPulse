@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Copy, CheckCircle, Loader, RefreshCw, FileText } from "lucide-react";
+import { Copy, CheckCircle, Loader, RefreshCw, FileText, User, Truck } from "lucide-react";
 
 import DocRequestItem from "@/components/DocRequestItem";
 import MessageThread from "@/components/MessageThread";
@@ -210,6 +210,16 @@ export default function LoadDetailPage() {
     void navigator.clipboard.writeText(driverLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
+  }
+
+  function fmtDateTime(iso: string): string {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+    const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    if (diffDays === 0) return `Today at ${time}`;
+    if (diffDays === 1) return `Yesterday at ${time}`;
+    return d.toLocaleDateString([], { month: "short", day: "numeric" }) + ` at ${time}`;
   }
 
   if (loading) return <p className="text-sm text-brand-slate-light">Loading load...</p>;
@@ -430,14 +440,19 @@ export default function LoadDetailPage() {
                           {(req.doc_types as string[]).join(", ")}
                         </span>
                       </div>
+                      {Boolean(req.created_at) && (
+                        <p className="text-xs text-brand-slate-light">
+                          Sent {fmtDateTime(req.created_at as string)}
+                        </p>
+                      )}
                       {isFulfilled && Boolean(req.fulfilled_at) && (
                         <p className="text-xs text-green-400">
-                          Completed {new Date(req.fulfilled_at as string).toLocaleDateString()}
+                          Uploaded {fmtDateTime(req.fulfilled_at as string)}
                         </p>
                       )}
                       {!isFulfilled && !isExpired && Boolean(req.expires_at) && (
                         <p className="text-xs text-brand-slate-light">
-                          Link expires {new Date(req.expires_at as string).toLocaleDateString()}
+                          Expires {fmtDateTime(req.expires_at as string)}
                         </p>
                       )}
                     </div>
@@ -450,27 +465,48 @@ export default function LoadDetailPage() {
           {/* Uploaded files */}
           {paperworkDocs.length > 0 && (
             <div className="space-y-1.5">
-              {paperworkDocs.map((doc) => (
-                <div key={doc.id as string} className="flex items-center justify-between rounded-lg border border-brand-border bg-brand-surface px-3 py-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileText size={14} className="shrink-0 text-brand-amber" />
-                    <span className="truncate text-sm text-brand-slate">{doc.file_name as string}</span>
-                    <span className="shrink-0 rounded border border-brand-border px-1.5 py-0.5 font-mono text-[10px] text-brand-slate-light">
-                      {doc.doc_type as string}
-                    </span>
+              {paperworkDocs.map((doc) => {
+                const fromDriver = Boolean(doc.request_id);
+                return (
+                  <div key={doc.id as string} className="rounded-lg border border-brand-border bg-brand-surface px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText size={14} className="shrink-0 text-brand-amber" />
+                        <span className="truncate text-sm text-brand-slate">{doc.file_name as string}</span>
+                        <span className="shrink-0 rounded border border-brand-border px-1.5 py-0.5 font-mono text-[10px] text-brand-slate-light">
+                          {doc.doc_type as string}
+                        </span>
+                      </div>
+                      {Boolean(doc.file_url) && (
+                        <a
+                          href={doc.file_url as string}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 text-xs text-brand-amber hover:underline"
+                        >
+                          View
+                        </a>
+                      )}
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <span className={cn(
+                        "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium",
+                        fromDriver
+                          ? "border-amber-700/40 bg-brand-amber-light text-brand-amber"
+                          : "border-blue-700/40 bg-blue-950 text-blue-400"
+                      )}>
+                        {fromDriver ? <Truck size={9} /> : <User size={9} />}
+                        {fromDriver ? "Driver" : "You"}
+                      </span>
+                      {Boolean(doc.uploaded_at) && (
+                        <span className="text-[10px] text-brand-slate-light">
+                          {fmtDateTime(doc.uploaded_at as string)}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  {Boolean(doc.file_url) && (
-                    <a
-                      href={doc.file_url as string}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 text-xs text-brand-amber hover:underline"
-                    >
-                      View
-                    </a>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
