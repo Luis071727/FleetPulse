@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-07 (Load detail: upload timestamps + Driver/You source labels on submitted documents)
+Last updated: 2026-04-07 (Compliance: carrier can set issue/expiry dates on upload; expired docs in dashboard)
 
 ---
 
@@ -220,9 +220,11 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 |-------|------|-------|
 | API calls (legacy) | `services/api.ts` | `listComplianceDocs`, `updateComplianceDoc`, `deleteComplianceDoc`, `listPendingActions` — no longer used in dispatcher UI |
 | Backend (legacy) | `backend/app/carriers/routes.py` | `GET/PATCH/DELETE /carriers/{id}/compliance-documents`, `GET /carriers/{id}/pending-actions` |
-| Carrier page | `FleetPulse/app/compliance/page.tsx` | Carrier's compliance view (read-only) |
-| Component | `FleetPulse/components/ComplianceDocRow.tsx` | Individual doc row (carrier portal) |
+| Carrier page | `FleetPulse/app/compliance/page.tsx` | Carrier's compliance view; lists docs ordered by expiry; passes `effectiveStatus` (computed client-side) to each row |
+| Component | `FleetPulse/components/ComplianceDocRow.tsx` | **Redesigned:** issue date + expiry date inputs (pre-filled from existing values, editable); "Last updated [date]" from `uploaded_at`; expired = red left border, expiring_soon = orange left border; passes `issueDate`/`expiresAt` to `UploadButton` |
+| `UploadButton` | `FleetPulse/components/UploadButton.tsx` | Extended: `issueDate?` + `expiresAt?` props (YYYY-MM-DD); both written to `compliance_documents` on upload when provided |
 | DB table | `compliance_documents` | id, carrier_id, doc_type (INSURANCE/CDL/REGISTRATION/INSPECTION/OTHER), label, storage_path, file_name, **issued_at** (date, added 20260331), expires_at (date), status, uploaded_at |
+| TS type | `FleetPulse/lib/types.ts` | `issued_at` added to `compliance_documents` Row + Insert |
 | Migration | `20260331_doc_date_fields.sql` | Adds `issued_at` to compliance_documents; adds `issued_at` + `expires_at` to invoice_documents |
 
 ---
@@ -373,7 +375,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 **Pending Actions — 3 types (amber/orange/blue left border per type):**
 1. **Pending paperwork** (amber) — `GET /api/v1/paperwork/carrier/pending` with carrier Bearer token; shows lane, doc types, expiry; "Copy Link" copies magic_link to clipboard
-2. **Compliance expiring** (orange) — Supabase `compliance_documents` where `expires_at` between today and today+30d; shows doc label/type + days remaining; "Renew" links to `/compliance`
+2. **Compliance expired/expiring** — Supabase `compliance_documents` where `expires_at <= today+30d` (no lower bound — includes already-expired); expired = red border + "Expired Xd ago", expiring = orange border + "Xd left"; "Renew" links to `/compliance`
 3. **Invoices ready to send** (blue) — Supabase `invoices` with `status='pending'` + `loads(status, origin, destination, broker_name, customer_ap_email)` join; filtered client-side for `loads.status === 'delivered'`; "Send Invoice" → `POST /api/v1/invoices/{id}/send` → marks as sent → opens `mailto:` pre-filled with invoice details
 
 ---
