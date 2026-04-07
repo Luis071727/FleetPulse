@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Upload } from "lucide-react";
+import { Camera, FolderOpen } from "lucide-react";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import type { Database } from "@/lib/types";
@@ -17,7 +17,6 @@ type Props = {
   issueDate?: string;
   /** YYYY-MM-DD — written to compliance_documents.expires_at on upload */
   expiresAt?: string;
-  label?: string;
   onSuccess?: () => void;
 };
 
@@ -30,9 +29,9 @@ export default function UploadButton({
   complianceDocumentId,
   issueDate,
   expiresAt,
-  label = "Upload",
   onSuccess,
 }: Props) {
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -112,32 +111,51 @@ export default function UploadButton({
       setError(caught instanceof Error ? caught.message : "Upload failed");
     } finally {
       setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
   return (
-    <div>
+    <div className="space-y-2">
+      {/* Camera input — opens device camera on mobile */}
       <input
-        ref={fileInputRef}
+        ref={cameraInputRef}
         type="file"
-        accept="image/*,.pdf"
+        accept="image/*"
         capture="environment"
         className="hidden"
         onChange={handleFileSelected}
       />
-      <button
-        type="button"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={uploading}
-        className="inline-flex items-center gap-2 rounded-lg border border-amber-700/40 bg-brand-amber px-3 py-2 text-sm font-semibold text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <Upload size={16} />
-        {uploading ? "Uploading..." : label}
-      </button>
-      {error && <p className="mt-2 text-xs text-brand-danger">{error}</p>}
+      {/* File input — opens file picker (gallery, PDFs, any file) */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,.pdf"
+        className="hidden"
+        onChange={handleFileSelected}
+      />
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => cameraInputRef.current?.click()}
+          disabled={uploading}
+          className="inline-flex items-center gap-2 rounded-lg border border-amber-700/40 bg-brand-amber px-3 py-2 text-sm font-semibold text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Camera size={15} />
+          {uploading ? "Uploading..." : "Take Photo"}
+        </button>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="inline-flex items-center gap-2 rounded-lg border border-brand-border bg-transparent px-3 py-2 text-sm font-semibold text-brand-slate transition hover:bg-brand-surface-light disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <FolderOpen size={15} />
+          {uploading ? "Uploading..." : "Choose File"}
+        </button>
+      </div>
+      {error && <p className="text-xs text-brand-danger">{error}</p>}
     </div>
   );
 }

@@ -39,7 +39,6 @@ export default function DocRequestItem({
             docType={request.doc_type}
             documentRequestId={request.id}
             loadId={loadId}
-            label={request.status === "rejected" ? "Re-upload document" : "Upload document"}
             onSuccess={onRefresh}
           />
         ) : (

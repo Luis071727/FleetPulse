@@ -97,7 +97,6 @@ export default function ComplianceDocRow({ doc, carrierId, currentUserId, effect
           docType={doc.doc_type}
           issueDate={issueDate || undefined}
           expiresAt={expiresAt || undefined}
-          label={doc.storage_path ? "Replace document" : "Upload document"}
           onSuccess={onRefresh}
         />
       </div>

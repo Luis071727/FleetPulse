@@ -321,7 +321,6 @@ export default function LoadDetailPage() {
                 carrierId={carrier.id}
                 docType={selectedDocType}
                 loadId={load.id}
-                label="Upload File"
                 onSuccess={() => {
                   void refreshLoadContext();
                   void fetchPaperworkStatus();
