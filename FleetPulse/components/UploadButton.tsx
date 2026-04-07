@@ -13,6 +13,10 @@ type Props = {
   loadId?: string;
   documentRequestId?: string;
   complianceDocumentId?: string;
+  /** YYYY-MM-DD — written to compliance_documents.issued_at on upload */
+  issueDate?: string;
+  /** YYYY-MM-DD — written to compliance_documents.expires_at on upload */
+  expiresAt?: string;
   label?: string;
   onSuccess?: () => void;
 };
@@ -24,6 +28,8 @@ export default function UploadButton({
   loadId,
   documentRequestId,
   complianceDocumentId,
+  issueDate,
+  expiresAt,
   label = "Upload",
   onSuccess,
 }: Props) {
@@ -84,12 +90,14 @@ export default function UploadButton({
       }
 
       if (complianceDocumentId) {
-        const compliancePayload = {
+        const compliancePayload: Database["public"]["Tables"]["compliance_documents"]["Update"] = {
           file_name: file.name,
           status: "active",
           storage_path: storagePath,
           uploaded_at: new Date().toISOString(),
-        } satisfies Database["public"]["Tables"]["compliance_documents"]["Update"];
+          ...(issueDate ? { issued_at: issueDate } : {}),
+          ...(expiresAt ? { expires_at: expiresAt } : {}),
+        };
 
         const complianceUpdate = await supabase
           .from("compliance_documents")

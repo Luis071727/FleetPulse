@@ -138,6 +138,7 @@ export interface Database {
           label: string | null;
           storage_path: string | null;
           file_name: string | null;
+          issued_at: string | null;
           expires_at: string | null;
           status: ComplianceStatus;
           uploaded_at: string | null;
@@ -149,6 +150,7 @@ export interface Database {
           label?: string | null;
           storage_path?: string | null;
           file_name?: string | null;
+          issued_at?: string | null;
           expires_at?: string | null;
           status?: ComplianceStatus;
           uploaded_at?: string | null;

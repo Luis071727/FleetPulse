@@ -116,8 +116,7 @@ export default function DashboardPage() {
         .select("*")
         .eq("carrier_id", carrierData.id)
         .not("expires_at", "is", null)
-        .gte("expires_at", today)
-        .lte("expires_at", thirtyDaysOut)
+        .lte("expires_at", thirtyDaysOut)   // expired OR expiring within 30 days
         .order("expires_at", { ascending: true }),
       supabase.auth.getSession(),
     ]);
@@ -311,27 +310,36 @@ export default function DashboardPage() {
               </div>
             ))}
 
-            {/* 2. Expiring compliance docs */}
+            {/* 2. Expiring / expired compliance docs */}
             {expiringDocs.map((doc) => {
               const days = daysUntil(doc.expires_at!);
+              const isExpired = days < 0;
               return (
-                <div key={doc.id} className="card p-4 border-l-2 border-orange-500">
+                <div key={doc.id} className={`card p-4 border-l-2 ${isExpired ? "border-red-500" : "border-orange-500"}`}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-orange-400 shrink-0" />
-                        <span className="text-xs font-medium text-orange-400 uppercase tracking-wide">Compliance Expiring</span>
+                        <AlertTriangle className={`h-4 w-4 shrink-0 ${isExpired ? "text-red-400" : "text-orange-400"}`} />
+                        <span className={`text-xs font-medium uppercase tracking-wide ${isExpired ? "text-red-400" : "text-orange-400"}`}>
+                          {isExpired ? "Compliance Expired" : "Compliance Expiring"}
+                        </span>
                       </div>
                       <p className="mt-1 text-sm font-medium text-brand-slate">
                         {doc.label || doc.doc_type}
                       </p>
                       <p className="text-xs text-brand-slate-light mt-0.5">
-                        Expires {new Date(doc.expires_at!).toLocaleDateString()} · {days <= 0 ? "Today" : `${days}d left`}
+                        {isExpired
+                          ? `Expired ${new Date(doc.expires_at!).toLocaleDateString()} · ${Math.abs(days)}d ago`
+                          : `Expires ${new Date(doc.expires_at!).toLocaleDateString()} · ${days === 0 ? "Today" : `${days}d left`}`}
                       </p>
                     </div>
                     <Link
                       href="/compliance"
-                      className="shrink-0 flex items-center gap-1.5 rounded-md bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 text-xs px-3 py-1.5 transition-colors"
+                      className={`shrink-0 flex items-center gap-1.5 rounded-md text-xs px-3 py-1.5 transition-colors ${
+                        isExpired
+                          ? "bg-red-500/10 hover:bg-red-500/20 text-red-400"
+                          : "bg-orange-500/10 hover:bg-orange-500/20 text-orange-400"
+                      }`}
                     >
                       Renew
                     </Link>
