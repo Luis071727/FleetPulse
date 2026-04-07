@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-07 (Compliance: carrier can set issue/expiry dates on upload; expired docs in dashboard)
+Last updated: 2026-04-07 (UploadButton: two-option upload — Take Photo / Choose File)
 
 ---
 
@@ -222,7 +222,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Backend (legacy) | `backend/app/carriers/routes.py` | `GET/PATCH/DELETE /carriers/{id}/compliance-documents`, `GET /carriers/{id}/pending-actions` |
 | Carrier page | `FleetPulse/app/compliance/page.tsx` | Carrier's compliance view; lists docs ordered by expiry; passes `effectiveStatus` (computed client-side) to each row |
 | Component | `FleetPulse/components/ComplianceDocRow.tsx` | **Redesigned:** issue date + expiry date inputs (pre-filled from existing values, editable); "Last updated [date]" from `uploaded_at`; expired = red left border, expiring_soon = orange left border; passes `issueDate`/`expiresAt` to `UploadButton` |
-| `UploadButton` | `FleetPulse/components/UploadButton.tsx` | Extended: `issueDate?` + `expiresAt?` props (YYYY-MM-DD); both written to `compliance_documents` on upload when provided |
+| `UploadButton` | `FleetPulse/components/UploadButton.tsx` | **Two-option upload:** "Take Photo" button (`capture="environment"`, `accept="image/*"`) opens camera on mobile; "Choose File" button (`accept="image/*,.pdf"`) opens file picker for gallery/PDFs. Both share same handler. Props: `issueDate?` + `expiresAt?` (YYYY-MM-DD) written to `compliance_documents` on upload; `label` prop removed. |
 | DB table | `compliance_documents` | id, carrier_id, doc_type (INSURANCE/CDL/REGISTRATION/INSPECTION/OTHER), label, storage_path, file_name, **issued_at** (date, added 20260331), expires_at (date), status, uploaded_at |
 | TS type | `FleetPulse/lib/types.ts` | `issued_at` added to `compliance_documents` Row + Insert |
 | Migration | `20260331_doc_date_fields.sql` | Adds `issued_at` to compliance_documents; adds `issued_at` + `expires_at` to invoice_documents |
