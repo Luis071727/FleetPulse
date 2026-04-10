@@ -165,7 +165,7 @@ class InvoiceStatusUpdate(BaseModel):
 
 
 class CreateInvoiceIn(BaseModel):
-    carrier_id: str
+    carrier_id: str | None = None
     broker_mc: str | None = None
     amount: float
     issued_date: str | None = None
@@ -178,15 +178,33 @@ class CreateInvoiceIn(BaseModel):
 @router.post("", status_code=201)
 def create_invoice(
     payload: CreateInvoiceIn,
-    user: CurrentUser = Depends(require_dispatcher),
+    user: CurrentUser = Depends(require_authenticated),
 ) -> ResponseEnvelope:
     from uuid import uuid4
 
-    org_id = user.organization_id
+    is_dispatcher = user.role == "dispatcher_admin"
     now_iso = datetime.now(timezone.utc).isoformat()
     sb = get_supabase()
 
-    linked_load = _get_loads_lookup(org_id, sb=sb).get(payload.load_id) if payload.load_id else None
+    # Resolve org_id and carrier_id
+    if is_dispatcher:
+        org_id = user.organization_id
+        carrier_id = payload.carrier_id
+    else:
+        if not user.carrier_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        carrier_id = user.carrier_id
+        # Try to inherit org_id from the linked load row
+        org_id = None
+        if payload.load_id:
+            try:
+                ld_res = sb.table("loads").select("organization_id").eq("id", payload.load_id).maybe_single().execute()
+                if ld_res and ld_res.data:
+                    org_id = ld_res.data.get("organization_id")
+            except Exception:
+                pass
+
+    linked_load = _get_loads_lookup(org_id or "", sb=sb).get(payload.load_id) if payload.load_id and org_id else None
 
     # Look up broker if MC provided
     broker_id = None
@@ -202,7 +220,7 @@ def create_invoice(
     carrier_name = "—"
     try:
         carriers = _get_carriers_mem()
-        c = next((c for c in carriers if c.get("id") == payload.carrier_id), None)
+        c = next((c for c in carriers if c.get("id") == carrier_id), None)
         if c:
             carrier_name = c.get("legal_name", "—")
     except Exception:
@@ -217,7 +235,7 @@ def create_invoice(
         "id": inv_id,
         "organization_id": org_id,
         "load_id": payload.load_id,
-        "carrier_id": payload.carrier_id,
+        "carrier_id": carrier_id,
         "carrier_name": carrier_name,
         "broker_id": broker_id,
         "amount": payload.amount,
@@ -331,8 +349,9 @@ def get_invoice(
 def update_invoice(
     invoice_id: str,
     payload: InvoiceStatusUpdate,
-    user: CurrentUser = Depends(require_dispatcher),
+    user: CurrentUser = Depends(require_authenticated),
 ) -> ResponseEnvelope:
+    is_dispatcher = user.role == "dispatcher_admin"
     updates: dict = {}
 
     if payload.status:
@@ -363,24 +382,31 @@ def update_invoice(
 
     try:
         sb = get_supabase()
-        result = safe_execute(
-            sb.table("invoices")
-            .update(updates)
-            .eq("id", invoice_id)
-            .eq("organization_id", user.organization_id)
-        )
+        query = sb.table("invoices").update(updates).eq("id", invoice_id)
+        if is_dispatcher:
+            query = query.eq("organization_id", user.organization_id)
+        elif user.carrier_id:
+            query = query.eq("carrier_id", user.carrier_id)
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        result = safe_execute(query)
         if result.data:
-            # Also update in-memory
             for iv in _get_invoices_mem():
                 if iv.get("id") == invoice_id:
                     iv.update(updates)
             return ok(result.data[0])
+    except HTTPException:
+        raise
     except Exception:
         pass
 
-    # Fallback: update in-memory
     for iv in _get_invoices_mem():
-        if iv.get("id") == invoice_id and iv.get("organization_id") == user.organization_id:
+        if iv.get("id") != invoice_id:
+            continue
+        if is_dispatcher and iv.get("organization_id") == user.organization_id:
+            iv.update(updates)
+            return ok(iv)
+        elif user.carrier_id and iv.get("carrier_id") == user.carrier_id:
             iv.update(updates)
             return ok(iv)
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
@@ -477,29 +503,37 @@ def send_invoice(
 @router.delete("/{invoice_id}", status_code=200)
 def delete_invoice(
     invoice_id: str,
-    user: CurrentUser = Depends(require_dispatcher),
+    user: CurrentUser = Depends(require_authenticated),
 ) -> ResponseEnvelope:
+    is_dispatcher = user.role == "dispatcher_admin"
     now_iso = datetime.now(timezone.utc).isoformat()
     sb = get_supabase()
     try:
-        result = (
-            sb.table("invoices")
-            .update({"deleted_at": now_iso})
-            .eq("id", invoice_id)
-            .eq("organization_id", user.organization_id)
-            .execute()
-        )
+        query = sb.table("invoices").update({"deleted_at": now_iso}).eq("id", invoice_id)
+        if is_dispatcher:
+            query = query.eq("organization_id", user.organization_id)
+        elif user.carrier_id:
+            query = query.eq("carrier_id", user.carrier_id)
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        result = query.execute()
         if result.data:
             for iv in _get_invoices_mem():
                 if iv.get("id") == invoice_id:
                     iv["deleted_at"] = now_iso
             return ok({"deleted": True})
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("DB delete_invoice failed: %s", e)
 
-    # Fallback: mark in-memory
     for iv in _get_invoices_mem():
-        if iv.get("id") == invoice_id and iv.get("organization_id") == user.organization_id:
+        if iv.get("id") != invoice_id:
+            continue
+        if is_dispatcher and iv.get("organization_id") == user.organization_id:
+            iv["deleted_at"] = now_iso
+            return ok({"deleted": True})
+        elif user.carrier_id and iv.get("carrier_id") == user.carrier_id:
             iv["deleted_at"] = now_iso
             return ok({"deleted": True})
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")

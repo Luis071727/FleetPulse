@@ -1,4 +1,5 @@
 export type CarrierStatus = "pending" | "active" | "inactive";
+export type CarrierPortalMode = "managed" | "self_managed";
 export type LoadStatus = "pending" | "logged" | "in_transit" | "delivered" | "cancelled";
 export type DocumentRequestStatus = "pending" | "uploaded" | "approved" | "rejected";
 export type DocumentRequestType = "BOL" | "POD" | "RATE_CON" | "INVOICE" | "OTHER";
@@ -25,6 +26,7 @@ export interface Database {
           invited_by: string | null;
           invited_at: string | null;
           status: CarrierStatus;
+          portal_mode: CarrierPortalMode;
           created_at: string | null;
         };
         Insert: {
@@ -39,6 +41,7 @@ export interface Database {
           invited_by?: string | null;
           invited_at?: string | null;
           status?: CarrierStatus;
+          portal_mode?: CarrierPortalMode;
           created_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["carriers"]["Insert"]>;

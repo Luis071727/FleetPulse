@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-07 (UploadButton: two-option upload — Take Photo / Choose File)
+Last updated: 2026-04-10 (Carrier portal CRUD + portal_mode differentiation)
 
 ---
 
@@ -98,12 +98,20 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 | Layer | File | Notes |
 |-------|------|-------|
-| List page | `FleetPulse/app/loads/page.tsx` | Carrier's own loads only (filtered by carrier_id) |
-| Detail page | `FleetPulse/app/loads/[loadId]/page.tsx` | Full load detail + messages + doc requests |
+| List page | `FleetPulse/app/loads/page.tsx` | Carrier's own loads only (filtered by carrier_id); "Log Load" form gated on `portal_mode === 'self_managed'`; splits into Active (logged/in_transit/pending) and History (delivered/cancelled) |
+| Detail page | `FleetPulse/app/loads/[loadId]/page.tsx` | Full load detail + messages + doc requests; self-managed: status advance button (`STATUS_SEQUENCE`), inline edit form, delete with confirmation (calls FastAPI with Supabase Bearer token) |
 | Components | `FleetPulse/components/LoadCard.tsx` | Load summary card |
 | Components | `FleetPulse/components/MessageThread.tsx` | Dispatcher ↔ carrier messaging |
 | Components | `FleetPulse/components/DocRequestItem.tsx` | Document request list item |
-| Same API | `backend/app/loads/routes.py` | Shared backend, carrier role sees only their loads |
+| Same API | `backend/app/loads/routes.py` | Shared backend; auth relaxed to `require_authenticated`; carriers POST without org_id (carrier_id from JWT); PATCH/DELETE filter by carrier_id for carriers vs organization_id for dispatchers |
+
+**portal_mode gating (loads):**
+- `managed` (default): read-only — no Log Load button, no status advance, no edit, no delete
+- `self_managed`: full CRUD — Log Load form visible, status advance/edit/delete on detail page
+
+**Self-managed load creation:** `POST /api/v1/loads` — body: `{origin, destination, pickup_date?, delivery_date?, rate, broker_name?, customer_ap_email?, notes?}`; `carrier_id` resolved from JWT, `org_id = None`
+
+**Status advance:** `STATUS_SEQUENCE = ["logged", "in_transit", "delivered"]`; `NEXT_STATUS_LABEL = {logged: "Start Transit", in_transit: "Mark Delivered"}`; calls `PATCH /api/v1/loads/{id}`
 
 ---
 
@@ -146,7 +154,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Add modal | `components/AddInvoiceModal.tsx` | Manual invoice creation |
 | **Send modal** | `components/InvoiceSendModal.tsx` | Pre-filled Gmail compose (To/Subject/Body) + client-side PDF download; lists attached docs; calls `sendInvoice()` to mark status; triggered from InvoiceRow and InvoiceDetailModal Details tab |
 | API calls | `services/api.ts:230–280` | `listInvoices`, `createInvoice`, `getInvoice`, `markInvoicePaid`, `updateInvoice`, `deleteInvoice`, `sendInvoice` |
-| Backend route | `backend/app/invoices/routes.py` | CRUD |
+| Backend route | `backend/app/invoices/routes.py` | CRUD; all write routes now use `require_authenticated`; carriers filtered by `carrier_id`, dispatchers by `organization_id` |
 | Enrichment | `backend/app/invoices/routes.py:_enrich_invoices()` | Adds days_outstanding, carrier_name, broker_name |
 | In-memory | `backend/app/invoices/routes.py:_get_invoices_mem()` | Imports `_INVOICES` from loads.routes |
 | DB table | `invoices` | id, organization_id, load_id, carrier_id, broker_id, amount, status, followups_sent, invoice_number, issued_date, due_date, customer_ap_email, deleted_at |
@@ -155,11 +163,11 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 **Invoice statuses:** `pending` → `sent` → `paid` / `overdue` / `shortpaid` / `claim`
 **Days outstanding:** computed from `issued_date` or load `delivery_date` vs today
 **Auto-advance (P4):** Backend — when POD doc uploaded via `PaperworkService.upload_file()`, calls `_advance_invoice_on_pod()` → advances invoice `pending → sent` automatically
-**`POST /{invoice_id}/send`:** Changed from `require_dispatcher` → `require_authenticated`; carriers can send their own invoices (ownership check via `carrier_id`); dispatchers use `organization_id` as before; AP email fallback queries load row via DB
+**Auth model (invoices):** All write endpoints (`POST`, `PATCH`, `DELETE`, `POST /send`) use `require_authenticated`. Carriers: ownership via `carrier_id` from JWT; `CreateInvoiceIn.carrier_id` is optional (`str | None = None`) — resolved from JWT. Dispatchers: ownership via `organization_id`.
 
 ---
 
-### INVOICES — Carrier Portal
+### INVOICES — Carrier Portal (Dispatcher App `/overview`)
 
 | Layer | File | Notes |
 |-------|------|-------|
@@ -169,6 +177,23 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 **Invoice statuses shown:** pending / sent / paid / overdue / shortpaid / claim
 **Days outstanding:** color-coded — green <30d, amber 30–60d, red >60d
+
+---
+
+### INVOICES — Carrier Portal (FleetPulse app, port 3000)
+
+| Layer | File | Notes |
+|-------|------|-------|
+| Page | `FleetPulse/app/invoices/page.tsx` | Carrier's own invoices; fetches from Supabase with `loads(load_number, origin, destination)` join; "New Invoice" form gated on `portal_mode === 'self_managed'`; per-invoice actions (Mark Paid, Send, Delete) also gated on self_managed |
+| New Invoice form | inline in `invoices/page.tsx` | Fields: load_id (delivered-loads dropdown), amount*, invoice_number, issued_date, due_date, customer_ap_email, notes; `POST /api/v1/invoices` with Bearer token |
+| Per-invoice actions | inline in `invoices/page.tsx` | Mark Paid → `PATCH /api/v1/invoices/{id}` `{status:"paid"}`; Send Invoice → `POST /api/v1/invoices/{id}/send` + opens mailto:; Delete → `DELETE /api/v1/invoices/{id}` + removes from list |
+| Backend route | `backend/app/invoices/routes.py` | Auth relaxed to `require_authenticated`; `CreateInvoiceIn.carrier_id` is `str | None = None` — resolved from JWT for carrier callers; PATCH/DELETE filter by carrier_id for carriers |
+
+**portal_mode gating (invoices):**
+- `managed`: invoice list visible, no create/modify actions
+- `self_managed`: "New Invoice" button + Mark Paid / Send / Delete per invoice
+
+**New invoice creation:** body: `{load_id?, amount, invoice_number?, issued_date?, due_date?, customer_ap_email?, notes?}`; `carrier_id` resolved from JWT; `org_id` inherited from load row if `load_id` provided, else `None`
 
 ---
 
@@ -198,17 +223,19 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/carriers/page.tsx` | Roster with grid/list toggle; clicking a carrier opens CarrierDetailModal |
 | Add modal | `components/AddCarrierModal.tsx` | DOT lookup (debounced, 1.3s) via `/api/fmcsa/carrier/[dot]`; **save calls `createCarrierManual` with preview data** — never re-queries FMCSA from backend; "Edit details before saving" opens manual form pre-filled from preview; manual entry always accessible via link; `addCarrier` no longer used |
 | **Detail modal** | `components/CarrierDetailModal.tsx` | **Tabbed modal** (Carrier Info + Documents); replaces old side drawer; uses carrier_compliance System 2 for documents |
-| Info tab | `components/CarrierDetailModal.tsx` | FMCSA read-only display + editable fields + Save Changes → `updateCarrier` |
+| Info tab | `components/CarrierDetailModal.tsx` | FMCSA read-only display + editable fields (including **Portal Mode select**) + Save Changes → `updateCarrier` |
 | Documents tab | `components/CarrierDetailModal.tsx` | Upload toolbar, doc list with inline edit/delete, magic link requests via `CarrierDocumentRequestModal` |
 | API calls | `services/api.ts:132–181` | `listCarriers`, `getCarrier`, `addCarrier`, `lookupDot`, `createCarrierManual`, `updateCarrier` |
 | Backend route | `backend/app/carriers/routes.py` | CRUD + `/lookup` + `/manual` + compliance-documents (legacy) + pending-actions |
 | Backend service | `backend/app/carriers/service.py` | `CarrierService`, in-memory `_CARRIERS` fallback |
 | FMCSA integration | `backend/app/fmcsa/cache.py` | `FmcsaCacheService` — DOT lookup with in-memory cache |
-| DB table | `carriers` | id, organization_id, legal_name, dot_number, mc_number, status, contact_*, address, drivers, power_units, portal_status |
+| DB table | `carriers` | id, organization_id, legal_name, dot_number, mc_number, status, contact_*, address, drivers, power_units, portal_status, **portal_mode** TEXT NOT NULL DEFAULT 'managed' CHECK (managed \| self_managed) |
+| Migration | `fleetpulse-dispatcher/supabase/migrations/20260410_carrier_portal_mode.sql` | Adds `portal_mode` column |
 | localStorage | `services/api.ts:9–17` | `VIEW_KEY = 'fleetpulse:roster:view'` — grid/list preference |
 
 **Carrier statuses:** `active`, `inactive`, `suspended`
 **Portal status:** `invited`, `active`, `none` — controls carrier portal access
+**Portal mode:** `managed` (default) — dispatcher manages loads, carrier is read-only; `self_managed` — carrier creates/edits/deletes their own loads and invoices. Set by dispatcher via CarrierDetailModal → Info tab → Portal Mode select. Read by carrier portal from `carriers.portal_mode` on every page load.
 
 ---
 
