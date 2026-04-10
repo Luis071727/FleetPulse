@@ -63,6 +63,7 @@ export default function CarrierDetailModal({ carrier, onClose, onSaved }: Props)
   // ── Info form state ──
   const [form, setForm] = useState({
     status: String(carrier.status || "active"),
+    portal_mode: String(carrier.portal_mode || "managed"),
     dba_name: String(carrier.dba_name || ""),
     owner_name: String(carrier.owner_name || ""),
     address: String(carrier.address || ""),
@@ -127,6 +128,7 @@ export default function CarrierDetailModal({ carrier, onClose, onSaved }: Props)
     setSaveError(null);
     const updates: Record<string, unknown> = {};
     if (form.status) updates.status = form.status;
+    if (form.portal_mode) updates.portal_mode = form.portal_mode;
     if (form.dba_name.trim()) updates.dba_name = form.dba_name.trim();
     if (form.owner_name.trim()) updates.owner_name = form.owner_name.trim();
     if (form.address.trim()) updates.address = form.address.trim();
@@ -269,13 +271,20 @@ export default function CarrierDetailModal({ carrier, onClose, onSaved }: Props)
               )}
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-                <div style={{ gridColumn: "1 / -1" }}>
+                <div>
                   <label style={lblStyle}>Status</label>
                   <select value={form.status} onChange={(e) => updateField("status", e.target.value)} style={inpStyle}>
                     <option value="active">Active</option>
                     <option value="idle">Idle</option>
                     <option value="issues">Issues</option>
                     <option value="new">New</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={lblStyle}>Portal Mode</label>
+                  <select value={form.portal_mode} onChange={(e) => updateField("portal_mode", e.target.value)} style={inpStyle}>
+                    <option value="managed">Managed — Dispatcher manages loads</option>
+                    <option value="self_managed">Self-Managed — Carrier manages own loads</option>
                   </select>
                 </div>
                 <div>

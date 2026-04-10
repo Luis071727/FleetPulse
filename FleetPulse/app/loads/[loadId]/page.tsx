@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Copy, CheckCircle, Loader, RefreshCw, FileText, User, Truck } from "lucide-react";
+import { AlertTriangle, ChevronRight, Copy, CheckCircle, Loader, Pencil, RefreshCw, FileText, Trash2, User, Truck } from "lucide-react";
 
 import DocRequestItem from "@/components/DocRequestItem";
 import MessageThread from "@/components/MessageThread";
@@ -11,7 +11,13 @@ import StatusBadge from "@/components/StatusBadge";
 import UploadButton from "@/components/UploadButton";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import { cn } from "@/lib/cn";
-import type { CarrierRow, DocumentRequestRow, LoadRow, MessageRow } from "@/lib/types";
+import type { CarrierPortalMode, CarrierRow, DocumentRequestRow, LoadRow, MessageRow } from "@/lib/types";
+
+const STATUS_SEQUENCE: LoadRow["status"][] = ["logged", "in_transit", "delivered"];
+const NEXT_STATUS_LABEL: Partial<Record<LoadRow["status"], string>> = {
+  logged: "Start Transit",
+  in_transit: "Mark Delivered",
+};
 
 const DOC_TYPES = [
   { value: "BOL", label: "Bill of Lading (BOL)" },
@@ -31,11 +37,28 @@ export default function LoadDetailPage() {
   );
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [carrier, setCarrier] = useState<CarrierRow | null>(null);
+  const [portalMode, setPortalMode] = useState<CarrierPortalMode>("managed");
   const [load, setLoad] = useState<LoadRow | null>(null);
   const [requests, setRequests] = useState<DocumentRequestRow[]>([]);
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Self-managed actions
+  const [advancingStatus, setAdvancingStatus] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editOrigin, setEditOrigin] = useState("");
+  const [editDest, setEditDest] = useState("");
+  const [editPickup, setEditPickup] = useState("");
+  const [editDelivery, setEditDelivery] = useState("");
+  const [editRate, setEditRate] = useState("");
+  const [editBroker, setEditBroker] = useState("");
+  const [editApEmail, setEditApEmail] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Doc section state
   const [docMode, setDocMode] = useState<"upload" | "driver">("upload");
@@ -80,6 +103,7 @@ export default function LoadDetailPage() {
     }
 
     setCarrier(carrierData);
+    setPortalMode(carrierData.portal_mode ?? "managed");
 
     const loadResult = await supabase
       .from("loads")
@@ -212,6 +236,88 @@ export default function LoadDetailPage() {
     setTimeout(() => setCopied(false), 2500);
   }
 
+  function openEdit() {
+    if (!load) return;
+    setEditOrigin(load.origin ?? "");
+    setEditDest(load.destination ?? "");
+    setEditPickup(load.pickup_date ?? "");
+    setEditDelivery(load.delivery_date ?? "");
+    setEditRate(String(load.rate ?? ""));
+    setEditBroker((load as Record<string, unknown>)["broker_name"] as string ?? "");
+    setEditApEmail((load as Record<string, unknown>)["customer_ap_email"] as string ?? "");
+    setEditNotes(load.notes ?? "");
+    setEditError(null);
+    setShowEdit(true);
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase || !load) return;
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
+      const res = await fetch(`${apiBase}/loads/${load.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token ?? ""}` },
+        body: JSON.stringify({
+          origin: editOrigin || undefined,
+          destination: editDest || undefined,
+          pickup_date: editPickup || undefined,
+          delivery_date: editDelivery || undefined,
+          rate: editRate ? parseFloat(editRate) : undefined,
+          broker_name: editBroker || undefined,
+          customer_ap_email: editApEmail || undefined,
+          notes: editNotes || undefined,
+        }),
+      });
+      const json = await res.json() as { error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? "Failed to save");
+      setShowEdit(false);
+      await refreshLoadContext();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function advanceStatus() {
+    if (!supabase || !load) return;
+    const next = NEXT_STATUS_LABEL[load.status] ? STATUS_SEQUENCE[STATUS_SEQUENCE.indexOf(load.status) + 1] : null;
+    if (!next) return;
+    setAdvancingStatus(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
+      await fetch(`${apiBase}/loads/${load.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token ?? ""}` },
+        body: JSON.stringify({ status: next }),
+      });
+      await refreshLoadContext();
+    } finally {
+      setAdvancingStatus(false);
+    }
+  }
+
+  async function deleteLoad() {
+    if (!supabase || !load) return;
+    setDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
+      await fetch(`${apiBase}/loads/${load.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+      });
+      router.push("/loads");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   function fmtDateTime(iso: string): string {
     const d = new Date(iso);
     const now = new Date();
@@ -247,6 +353,96 @@ export default function LoadDetailPage() {
           <StatusBadge status={load.status} className="self-start" />
         </div>
       </section>
+
+      {/* ── Self-managed actions ── */}
+      {portalMode === "self_managed" && (
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Status advance */}
+          {NEXT_STATUS_LABEL[load.status] && (
+            <button type="button" disabled={advancingStatus} onClick={() => void advanceStatus()}
+              className="inline-flex items-center gap-2 rounded-lg border border-amber-700/40 bg-brand-amber px-4 py-2 text-sm font-semibold text-black transition hover:bg-amber-400 disabled:opacity-60">
+              {advancingStatus ? <Loader size={14} className="animate-spin" /> : <ChevronRight size={14} />}
+              {NEXT_STATUS_LABEL[load.status]}
+            </button>
+          )}
+          {/* Edit */}
+          <button type="button" onClick={openEdit}
+            className="inline-flex items-center gap-2 rounded-lg border border-brand-border px-4 py-2 text-sm text-brand-slate-light hover:text-brand-slate transition-colors">
+            <Pencil size={14} />
+            Edit
+          </button>
+          {/* Delete */}
+          {!showDeleteConfirm ? (
+            <button type="button" onClick={() => setShowDeleteConfirm(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-brand-border px-4 py-2 text-sm text-brand-danger hover:bg-red-950/40 transition-colors">
+              <Trash2 size={14} />
+              Delete
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 rounded-lg border border-brand-danger bg-red-950/30 px-4 py-2">
+              <AlertTriangle size={14} className="text-brand-danger" />
+              <span className="text-sm text-brand-danger">Delete this load?</span>
+              <button type="button" disabled={deleting} onClick={() => void deleteLoad()}
+                className="ml-2 text-sm font-semibold text-brand-danger hover:underline disabled:opacity-60">
+                {deleting ? "Deleting…" : "Yes, delete"}
+              </button>
+              <button type="button" onClick={() => setShowDeleteConfirm(false)} className="text-sm text-brand-slate-light hover:text-brand-slate">Cancel</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Edit form ── */}
+      {portalMode === "self_managed" && showEdit && (
+        <form onSubmit={(e) => void saveEdit(e)} className="card p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-brand-slate">Edit Load</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-brand-slate-light">Origin</label>
+              <input value={editOrigin} onChange={(e) => setEditOrigin(e.target.value)} className="w-full rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-sm text-brand-slate focus:outline-none focus:ring-1 focus:ring-brand-amber" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-brand-slate-light">Destination</label>
+              <input value={editDest} onChange={(e) => setEditDest(e.target.value)} className="w-full rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-sm text-brand-slate focus:outline-none focus:ring-1 focus:ring-brand-amber" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-brand-slate-light">Pickup Date</label>
+              <input type="date" value={editPickup} onChange={(e) => setEditPickup(e.target.value)} className="w-full rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-sm text-brand-slate focus:outline-none focus:ring-1 focus:ring-brand-amber" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-brand-slate-light">Delivery Date</label>
+              <input type="date" value={editDelivery} onChange={(e) => setEditDelivery(e.target.value)} className="w-full rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-sm text-brand-slate focus:outline-none focus:ring-1 focus:ring-brand-amber" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-brand-slate-light">Rate ($)</label>
+              <input type="number" min="0" step="0.01" value={editRate} onChange={(e) => setEditRate(e.target.value)} className="w-full rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-sm text-brand-slate focus:outline-none focus:ring-1 focus:ring-brand-amber" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-brand-slate-light">Broker Name</label>
+              <input value={editBroker} onChange={(e) => setEditBroker(e.target.value)} className="w-full rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-sm text-brand-slate focus:outline-none focus:ring-1 focus:ring-brand-amber" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-brand-slate-light">AP Email</label>
+              <input type="email" value={editApEmail} onChange={(e) => setEditApEmail(e.target.value)} className="w-full rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-sm text-brand-slate focus:outline-none focus:ring-1 focus:ring-brand-amber" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-brand-slate-light">Notes</label>
+              <textarea rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value)} className="w-full rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-sm text-brand-slate focus:outline-none focus:ring-1 focus:ring-brand-amber resize-none" />
+            </div>
+          </div>
+          {editError && <p className="text-xs text-brand-danger">{editError}</p>}
+          <div className="flex gap-3">
+            <button type="submit" disabled={editSaving}
+              className="inline-flex items-center gap-2 rounded-lg border border-amber-700/40 bg-brand-amber px-4 py-2 text-sm font-semibold text-black transition hover:bg-amber-400 disabled:opacity-60">
+              {editSaving && <Loader size={14} className="animate-spin" />}
+              {editSaving ? "Saving…" : "Save Changes"}
+            </button>
+            <button type="button" onClick={() => setShowEdit(false)} className="rounded-lg border border-brand-border px-4 py-2 text-sm text-brand-slate-light hover:text-brand-slate transition-colors">
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* ── Documents ── */}
       <section className="space-y-4">

@@ -24,21 +24,22 @@ _MESSAGES: list[dict] = []
 
 
 class CreateLoadIn(BaseModel):
-    carrier_id: str
-    broker_mc: str
+    carrier_id: str | None = None          # Optional for carriers (taken from JWT)
+    broker_mc: str | None = None           # Optional for self-managed carriers
     broker_name: str | None = None
     route: str | None = None
     origin: str | None = None
     destination: str | None = None
-    miles: float
-    rate: float
-    driver_pay: float
+    miles: float | None = None             # Optional — financials skipped if absent
+    rate: float = 0
+    driver_pay: float | None = None        # Optional for self-managed carriers
     fuel_cost: float = 0
     tolls: float = 0
     pickup_date: str | None = None
     delivery_date: str | None = None
     rc_reference: str | None = None  # Rate confirmation # or PDF filename
     customer_ap_email: str | None = None  # AP email for invoice delivery
+    notes: str | None = None
 
 
 class UpdateLoadIn(BaseModel):
@@ -70,15 +71,32 @@ def _compute_financials(rate: float, driver_pay: float, fuel_cost: float, tolls:
 @router.post("", status_code=201)
 def create_load(
     payload: CreateLoadIn,
-    user: CurrentUser = Depends(require_dispatcher),
+    user: CurrentUser = Depends(require_authenticated),
 ) -> ResponseEnvelope:
+    is_dispatcher = user.role == "dispatcher_admin"
     sb = get_supabase()
-    org_id = user.organization_id
 
-    # Look up or create broker
-    broker = broker_service.get_or_create_by_mc(payload.broker_mc)
+    # Resolve org_id and carrier_id based on caller role
+    if is_dispatcher:
+        org_id = user.organization_id
+        carrier_id = payload.carrier_id
+        if not carrier_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="carrier_id required for dispatchers")
+    else:
+        if not user.carrier_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        org_id = None
+        carrier_id = user.carrier_id
+
+    # Look up or create broker (optional for self-managed carriers)
+    broker: dict = {}
+    if payload.broker_mc:
+        broker = broker_service.get_or_create_by_mc(payload.broker_mc)
+
+    miles = payload.miles or 0.0
+    driver_pay = payload.driver_pay or 0.0
     net_profit, rpm, net_rpm = _compute_financials(
-        payload.rate, payload.driver_pay, payload.fuel_cost, payload.tolls, payload.miles
+        payload.rate, driver_pay, payload.fuel_cost, payload.tolls, miles
     )
 
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -101,7 +119,7 @@ def create_load(
     load_row = {
         "id": load_id,
         "organization_id": org_id,
-        "carrier_id": payload.carrier_id,
+        "carrier_id": carrier_id,
         "broker_id": broker.get("id"),
         "route": payload.route,
         "origin": origin_raw,
@@ -111,9 +129,9 @@ def create_load(
         "destination_city": dest_city or None,
         "destination_state": dest_state or None,
         "load_rate": payload.rate,
-        "miles": payload.miles,
+        "miles": miles,
         "fuel_cost": payload.fuel_cost,
-        "driver_pay": payload.driver_pay,
+        "driver_pay": driver_pay,
         "tolls": payload.tolls,
         "net_profit": net_profit,
         "rpm": rpm,
@@ -136,7 +154,7 @@ def create_load(
     carrier_name = "—"
     try:
         from app.carriers.service import _CARRIERS
-        c = next((c for c in _CARRIERS if c.get("id") == payload.carrier_id), None)
+        c = next((c for c in _CARRIERS if c.get("id") == carrier_id), None)
         if c:
             carrier_name = c.get("legal_name", "—")
     except Exception:
@@ -148,7 +166,7 @@ def create_load(
         "id": inv_id,
         "organization_id": org_id,
         "load_id": load.get("id", load_id),
-        "carrier_id": payload.carrier_id,
+        "carrier_id": carrier_id,
         "carrier_name": carrier_name,
         "broker_id": broker.get("id"),
         "amount": payload.rate,
@@ -233,8 +251,9 @@ def get_load(
 def update_load(
     load_id: str,
     payload: UpdateLoadIn,
-    user: CurrentUser = Depends(require_dispatcher),
+    user: CurrentUser = Depends(require_authenticated),
 ) -> ResponseEnvelope:
+    is_dispatcher = user.role == "dispatcher_admin"
     sb = get_supabase()
     updates = payload.model_dump(exclude_none=True)
     if not updates:
@@ -242,7 +261,6 @@ def update_load(
 
     # Recompute financials if rate/cost fields changed
     if any(k in updates for k in ("rate", "driver_pay", "fuel_cost", "tolls", "miles")):
-        # Need current values for unchanged fields
         current = next((ld for ld in _LOADS if ld.get("id") == load_id), None)
         if current:
             r = updates.get("rate", current.get("load_rate", current.get("rate", 0)))
@@ -257,7 +275,6 @@ def update_load(
     if "rate" in updates:
         updates["load_rate"] = updates.pop("rate")
 
-    # Recompute route if origin/destination changed
     if "origin" in updates or "destination" in updates:
         current = next((ld for ld in _LOADS if ld.get("id") == load_id), None)
         o = updates.get("origin", current.get("origin", "") if current else "")
@@ -267,24 +284,31 @@ def update_load(
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     try:
-        result = safe_execute(
-            sb.table("loads")
-            .update(updates)
-            .eq("id", load_id)
-            .eq("organization_id", user.organization_id)
-        )
+        query = sb.table("loads").update(updates).eq("id", load_id)
+        if is_dispatcher:
+            query = query.eq("organization_id", user.organization_id)
+        elif user.carrier_id:
+            query = query.eq("carrier_id", user.carrier_id)
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        result = safe_execute(query)
         if result.data:
-            # Also update in-memory
             for ld in _LOADS:
                 if ld.get("id") == load_id:
                     ld.update(updates)
             return ok(result.data[0])
+    except HTTPException:
+        raise
     except Exception:
         pass
 
-    # Fallback: update in-memory
     for ld in _LOADS:
-        if ld.get("id") == load_id and ld.get("organization_id") == user.organization_id:
+        if ld.get("id") != load_id:
+            continue
+        if is_dispatcher and ld.get("organization_id") == user.organization_id:
+            ld.update(updates)
+            return ok(ld)
+        elif user.carrier_id and ld.get("carrier_id") == user.carrier_id:
             ld.update(updates)
             return ok(ld)
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Load not found")
@@ -293,31 +317,44 @@ def update_load(
 @router.delete("/{load_id}", status_code=200)
 def delete_load(
     load_id: str,
-    user: CurrentUser = Depends(require_dispatcher),
+    user: CurrentUser = Depends(require_authenticated),
 ) -> ResponseEnvelope:
+    is_dispatcher = user.role == "dispatcher_admin"
     now_iso = datetime.now(timezone.utc).isoformat()
     sb = get_supabase()
     try:
-        result = (
-            sb.table("loads")
-            .update({"deleted_at": now_iso})
-            .eq("id", load_id)
-            .eq("organization_id", user.organization_id)
-            .execute()
-        )
+        query = sb.table("loads").update({"deleted_at": now_iso}).eq("id", load_id)
+        if is_dispatcher:
+            query = query.eq("organization_id", user.organization_id)
+        elif user.carrier_id:
+            query = query.eq("carrier_id", user.carrier_id)
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        result = query.execute()
         if result.data:
             # Also soft-delete associated invoices
-            sb.table("invoices").update({"deleted_at": now_iso}).eq("load_id", load_id).eq("organization_id", user.organization_id).execute()
+            inv_q = sb.table("invoices").update({"deleted_at": now_iso}).eq("load_id", load_id)
+            if is_dispatcher:
+                inv_q = inv_q.eq("organization_id", user.organization_id)
+            elif user.carrier_id:
+                inv_q = inv_q.eq("carrier_id", user.carrier_id)
+            inv_q.execute()
             for ld in _LOADS:
                 if ld.get("id") == load_id:
                     ld["deleted_at"] = now_iso
             return ok({"deleted": True})
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("DB delete_load failed: %s", e)
 
-    # Fallback: mark in-memory
     for ld in _LOADS:
-        if ld.get("id") == load_id and ld.get("organization_id") == user.organization_id:
+        if ld.get("id") != load_id:
+            continue
+        if is_dispatcher and ld.get("organization_id") == user.organization_id:
+            ld["deleted_at"] = now_iso
+            return ok({"deleted": True})
+        elif user.carrier_id and ld.get("carrier_id") == user.carrier_id:
             ld["deleted_at"] = now_iso
             return ok({"deleted": True})
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Load not found")
