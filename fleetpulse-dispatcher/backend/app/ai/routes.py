@@ -6,7 +6,7 @@ from app.common.schemas import ResponseEnvelope, ok
 from app.config import get_supabase, safe_execute
 from app.invoices.routes import _enrich_invoices
 from app.invoices.service import InvoiceFollowupService
-from app.middleware.auth import CurrentUser, require_dispatcher
+from app.middleware.auth import CurrentUser, require_authenticated, require_dispatcher
 
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -155,21 +155,31 @@ def score_broker(
 @router.post("/invoice/followup")
 def invoice_followup(
     payload: InvoiceFollowupIn,
-    user: CurrentUser = Depends(require_dispatcher),
+    user: CurrentUser = Depends(require_authenticated),
 ) -> ResponseEnvelope:
     sb = get_supabase()
-    result = (
+    is_dispatcher = user.role == "dispatcher_admin"
+    query = (
         sb.table("invoices")
         .select("*")
         .eq("id", payload.invoice_id)
-        .eq("organization_id", user.organization_id)
         .is_("deleted_at", "null")
-        .maybe_single()
-        .execute()
     )
+    if is_dispatcher:
+        if not user.organization_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        query = query.eq("organization_id", user.organization_id)
+    elif user.carrier_id:
+        query = query.eq("carrier_id", user.carrier_id)
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    result = query.maybe_single().execute()
     if not result or not result.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
-    invoice = _enrich_invoices([result.data], user.organization_id, sb=sb)[0]
+    # Carrier-created invoices may have organization_id = None; enrichment tolerates that.
+    enrich_org_id = result.data.get("organization_id") or user.organization_id or ""
+    invoice = _enrich_invoices([result.data], enrich_org_id, sb=sb)[0]
 
     days = invoice.get("days_outstanding", 0)
     tone = _followup_service.tone_for_days(days, payload.override_tone)

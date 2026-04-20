@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader, Plus, Trash2, CheckCircle, Send } from "lucide-react";
+import { Loader, Plus, Trash2, CheckCircle, Send, Sparkles } from "lucide-react";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import { cn } from "@/lib/cn";
 import type { CarrierPortalMode, CarrierRow, InvoiceRow, LoadRow } from "@/lib/types";
+import InvoiceSendModal from "@/components/InvoiceSendModal";
+import FollowUpModal from "@/components/FollowUpModal";
 
 type InvoiceWithLoad = InvoiceRow & {
   loads?: { load_number: string | null; origin: string; destination: string } | null;
@@ -72,7 +74,10 @@ export default function InvoicesPage() {
   const [actionInvoiceId, setActionInvoiceId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [markingPaidId, setMarkingPaidId] = useState<string | null>(null);
-  const [sendingId, setSendingId] = useState<string | null>(null);
+
+  // Modals (self-managed only)
+  const [sendModalInvoice, setSendModalInvoice] = useState<InvoiceWithLoad | null>(null);
+  const [followUpInvoice, setFollowUpInvoice] = useState<InvoiceWithLoad | null>(null);
 
   const fetchData = async (cId: string) => {
     if (!supabase) return;
@@ -146,27 +151,6 @@ export default function InvoicesPage() {
       });
       await fetchData(carrier.id);
     } finally { setMarkingPaidId(null); setActionInvoiceId(null); }
-  }
-
-  async function sendInvoice(inv: InvoiceWithLoad) {
-    if (!supabase || !carrier) return;
-    setSendingId(inv.id);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
-      const res = await fetch(`${apiBase}/invoices/${inv.id}/send`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
-      });
-      const json = await res.json() as { data?: { sent_to?: string } };
-      const email = json.data?.sent_to ?? (inv as unknown as Record<string, unknown>)["customer_ap_email"] as string ?? "";
-      if (email) {
-        const invNum = inv.invoice_number ?? inv.id.slice(0, 8).toUpperCase();
-        const lane = inv.loads ? `${inv.loads.origin} → ${inv.loads.destination}` : "";
-        window.open(`mailto:${email}?subject=${encodeURIComponent(`Invoice ${invNum}${lane ? ` — ${lane}` : ""}`)}&body=${encodeURIComponent(`Hello,\n\nPlease find attached invoice ${invNum}.\nAmount: ${fmtCurrency(inv.amount)}\n\nThank you.`)}`, "_blank");
-      }
-      await fetchData(carrier.id);
-    } finally { setSendingId(null); setActionInvoiceId(null); }
   }
 
   async function deleteInvoice(inv: InvoiceWithLoad) {
@@ -288,7 +272,6 @@ export default function InvoicesPage() {
             const showActions = isSelfManaged && actionInvoiceId === inv.id;
             const isDeleting = deletingId === inv.id;
             const isMarkingPaid = markingPaidId === inv.id;
-            const isSending = sendingId === inv.id;
 
             return (
               <div key={inv.id} className="card overflow-hidden">
@@ -344,10 +327,17 @@ export default function InvoicesPage() {
                           </button>
                         )}
                         {inv.status !== "paid" && (
-                          <button type="button" disabled={isSending} onClick={() => void sendInvoice(inv)}
-                            className="inline-flex items-center gap-1.5 rounded-md bg-blue-950 hover:bg-blue-900 text-blue-400 text-xs px-3 py-1.5 transition-colors disabled:opacity-60">
-                            {isSending ? <Loader size={11} className="animate-spin" /> : <Send size={11} />}
+                          <button type="button" onClick={() => setSendModalInvoice(inv)}
+                            className="inline-flex items-center gap-1.5 rounded-md bg-blue-950 hover:bg-blue-900 text-blue-400 text-xs px-3 py-1.5 transition-colors">
+                            <Send size={11} />
                             Send Invoice
+                          </button>
+                        )}
+                        {(inv.status === "sent" || inv.status === "overdue") && (
+                          <button type="button" onClick={() => setFollowUpInvoice(inv)}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-brand-amber/40 bg-brand-amber-light text-brand-amber text-xs px-3 py-1.5 transition-colors hover:bg-brand-amber/10">
+                            <Sparkles size={11} />
+                            Draft Follow-up
                           </button>
                         )}
                         {showActions ? (
@@ -381,6 +371,24 @@ export default function InvoicesPage() {
             );
           })}
         </div>
+      )}
+
+      {sendModalInvoice && carrier && (
+        <InvoiceSendModal
+          invoice={sendModalInvoice}
+          carrierName={carrier.company_name ?? carrier.name ?? "Your Carrier"}
+          onClose={() => setSendModalInvoice(null)}
+          onSent={() => { void fetchData(carrier.id); }}
+        />
+      )}
+
+      {followUpInvoice && (
+        <FollowUpModal
+          invoiceId={followUpInvoice.id}
+          invoiceNumber={followUpInvoice.invoice_number ?? followUpInvoice.id.slice(0, 8).toUpperCase()}
+          onClose={() => setFollowUpInvoice(null)}
+          onSent={() => { if (carrier) void fetchData(carrier.id); }}
+        />
       )}
     </div>
   );

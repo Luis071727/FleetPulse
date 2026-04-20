@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-20 (Carrier portal CRUD + portal_mode differentiation)
+Last updated: 2026-04-20 (Carrier portal: self-managed Send Invoice modal + AI Follow-up)
 
 ---
 
@@ -184,10 +184,13 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 | Layer | File | Notes |
 |-------|------|-------|
-| Page | `FleetPulse/app/invoices/page.tsx` | Carrier's own invoices; fetches from Supabase with `loads(load_number, origin, destination)` join; "New Invoice" form gated on `portal_mode === 'self_managed'`; per-invoice actions (Mark Paid, Send, Delete) also gated on self_managed |
+| Page | `FleetPulse/app/invoices/page.tsx` | Carrier's own invoices; fetches from Supabase with `loads(load_number, origin, destination)` join; "New Invoice" form gated on `portal_mode === 'self_managed'`; per-invoice actions (Mark Paid, Send, Delete, Draft Follow-up) also gated on self_managed |
 | New Invoice form | inline in `invoices/page.tsx` | Fields: load_id (delivered-loads dropdown), amount*, invoice_number, issued_date, due_date, customer_ap_email, notes; `POST /api/v1/invoices` with Bearer token |
-| Per-invoice actions | inline in `invoices/page.tsx` | Mark Paid → `PATCH /api/v1/invoices/{id}` `{status:"paid"}`; Send Invoice → `POST /api/v1/invoices/{id}/send` + opens mailto:; Delete → `DELETE /api/v1/invoices/{id}` + removes from list |
+| Per-invoice actions | inline in `invoices/page.tsx` | Mark Paid → `PATCH /api/v1/invoices/{id}` `{status:"paid"}`; Send Invoice → opens `InvoiceSendModal`; Draft Follow-up (sent/overdue only) → opens `FollowUpModal`; Delete → `DELETE /api/v1/invoices/{id}` |
+| **Send modal** | `FleetPulse/components/InvoiceSendModal.tsx` | Mirrors dispatcher's send flow for self-managed carriers: auto-generated branded PDF (print-to-PDF), editable To/Subject/Body, list of uploaded invoice documents (signed URLs from `/paperwork/invoices/{id}/documents`), Gmail compose on submit, marks invoice `sent` via `POST /invoices/{id}/send` |
+| **Follow-up modal** | `FleetPulse/components/FollowUpModal.tsx` | Calls `POST /ai/invoice/followup` with Supabase bearer; shows tone badge (polite/firm/assertive/final); editable subject+body; Copy to Clipboard + Mark as Sent |
 | Backend route | `backend/app/invoices/routes.py` | Auth relaxed to `require_authenticated`; `CreateInvoiceIn.carrier_id` is `str | None = None` — resolved from JWT for carrier callers; PATCH/DELETE filter by carrier_id for carriers |
+| Backend route (AI followup) | `backend/app/ai/routes.py` | Auth relaxed to `require_authenticated`; carriers filtered by `carrier_id`; `_enrich_invoices` called with fallback org_id (tolerates carrier-created invoices with organization_id=NULL) |
 
 **portal_mode gating (invoices):**
 - `managed`: invoice list visible, no create/modify actions
