@@ -90,7 +90,7 @@ export default function InvoicesPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setError("Session not found."); setLoading(false); return; }
 
-      const { data: cData, error: cErr } = await supabase.from("carriers").select("*").eq("user_id", user.id).maybeSingle();
+      const { data: cData, error: cErr } = await supabase.from("carriers").select("*").eq("user_id", user.id).limit(1).maybeSingle();
       if (cErr || !cData) { setError(cErr?.message ?? "Carrier profile not found."); setLoading(false); return; }
 
       setCarrier(cData as CarrierRow);
