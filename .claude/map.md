@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-10 (Carrier portal CRUD + portal_mode differentiation)
+Last updated: 2026-04-20 (Carrier portal CRUD + portal_mode differentiation)
 
 ---
 

@@ -93,6 +93,7 @@ export default function LoadDetailPage() {
       .from("carriers")
       .select("*")
       .eq("user_id", user.id)
+      .limit(1)
       .maybeSingle();
     const carrierData = carrierResult.data as CarrierRow | null;
 
@@ -143,6 +144,7 @@ export default function LoadDetailPage() {
       .select("id")
       .eq("load_id", loadId)
       .eq("carrier_id", carrierData.id)
+      .limit(1)
       .maybeSingle();
     const invId = (invResult.data as { id: string } | null)?.id ?? null;
     setInvoiceId(invId);
@@ -199,6 +201,7 @@ export default function LoadDetailPage() {
         .select("id")
         .eq("load_id", load.id)
         .eq("carrier_id", carrier.id)
+        .limit(1)
         .maybeSingle();
       const invoiceId = (invResult.data as { id: string } | null)?.id;
       if (!invoiceId) throw new Error("No invoice found for this load. Ask your dispatcher to create one first.");

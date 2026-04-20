@@ -84,6 +84,7 @@ export default function DashboardPage() {
       .from("carriers")
       .select("*")
       .eq("user_id", user.id)
+      .limit(1)
       .maybeSingle();
     const carrierData = carrierResult.data as CarrierRow | null;
 

@@ -115,7 +115,7 @@ export default function LoadsPage() {
       const user = userResult.data.user;
       if (!user) { setError("Session not found."); setLoading(false); return; }
 
-      const carrierResult = await supabase.from("carriers").select("*").eq("user_id", user.id).maybeSingle();
+      const carrierResult = await supabase.from("carriers").select("*").eq("user_id", user.id).limit(1).maybeSingle();
       const carrierData = carrierResult.data as CarrierRow | null;
       if (carrierResult.error || !carrierData) {
         setError(carrierResult.error?.message || "Carrier profile not found.");
