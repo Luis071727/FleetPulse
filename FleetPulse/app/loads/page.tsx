@@ -164,10 +164,16 @@ export default function LoadsPage() {
           notes: form.notes || null,
         }),
       });
-      const json = await res.json() as { data?: unknown; error?: string };
+      const json = await res.json() as { data?: { load: LoadRow }; error?: string };
       if (!res.ok || json.error) throw new Error(json.error ?? "Failed to create load");
       setShowForm(false);
-      await fetchLoads(carrier.id);
+      // Immediately prepend the new load so the user sees it at once
+      if (json.data?.load) {
+        const newLoad = { ...json.data.load, rate: (json.data.load as unknown as Record<string, number>).load_rate ?? json.data.load.rate } as LoadRow;
+        setLoads((prev) => [newLoad, ...prev]);
+      }
+      // Re-fetch in background to get DB-authoritative data (load_number, etc.)
+      void fetchLoads(carrier.id);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to create load");
     } finally {
