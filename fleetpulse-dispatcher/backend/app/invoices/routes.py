@@ -173,6 +173,7 @@ class CreateInvoiceIn(BaseModel):
     load_id: str | None = None
     notes: str | None = None
     invoice_number: str | None = None
+    customer_ap_email: str | None = None
 
 
 @router.post("", status_code=201)
@@ -244,6 +245,7 @@ def create_invoice(
         "invoice_number": invoice_number,
         "issued_date": payload.issued_date or str(date.today()),
         "due_date": payload.due_date or str(date.today()),
+        "customer_ap_email": payload.customer_ap_email,
         "notes": payload.notes,
         "created_at": now_iso,
     }

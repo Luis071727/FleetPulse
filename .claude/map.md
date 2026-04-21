@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-20 (Carrier portal: self-managed Send Invoice modal + AI Follow-up)
+Last updated: 2026-04-21 (Bug fix: carrier portal load/invoice creation — nullable org_id, auth fallback, optimistic UI)
 
 ---
 
@@ -50,7 +50,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | API calls | `services/api.ts:103–129` | `login`, `signup`, `inviteCarrier`, `acceptInvite` |
 | Backend route | `backend/app/auth/routes.py` | `POST /auth/login`, `/auth/signup`, `/auth/invite/carrier`, `/auth/accept-invite` |
 | Backend service | `backend/app/auth/service.py` | Supabase Auth Admin API |
-| Middleware | `backend/app/middleware/auth.py` | JWT decode, `CurrentUser`, role checks |
+| Middleware | `backend/app/middleware/auth.py` | JWT decode, `CurrentUser`, role checks; fallback: if no `users` row found, looks up `carriers.user_id = sub` and builds virtual CurrentUser (covers magic-link carrier portal sessions) |
 | Token storage | `services/api.ts:22–36` | `getToken()`, `setToken()`, `clearAuth()` stored in localStorage `fleetpulse:token` |
 
 **Auth flow:** Login → JWT returned → stored in localStorage → injected on every `apiFetch` call.
@@ -112,6 +112,8 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 **Self-managed load creation:** `POST /api/v1/loads` — body: `{origin, destination, pickup_date?, delivery_date?, rate, broker_name?, customer_ap_email?, notes?}`; `carrier_id` resolved from JWT, `org_id = None`
 
 **Status advance:** `STATUS_SEQUENCE = ["logged", "in_transit", "delivered"]`; `NEXT_STATUS_LABEL = {logged: "Start Transit", in_transit: "Mark Delivered"}`; calls `PATCH /api/v1/loads/{id}`
+
+**Bug fixed (2026-04-21):** `loads.organization_id` was NOT NULL → carrier inserts always failed (backend 500). Migration `20260421_carrier_self_managed.sql` drops NOT NULL and adds auth.uid()-based RLS SELECT/INSERT/UPDATE policies. Frontend now does optimistic prepend on success then background re-fetch.
 
 ---
 
@@ -197,6 +199,8 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 - `self_managed`: "New Invoice" button + Mark Paid / Send / Delete per invoice
 
 **New invoice creation:** body: `{load_id?, amount, invoice_number?, issued_date?, due_date?, customer_ap_email?, notes?}`; `carrier_id` resolved from JWT; `org_id` inherited from load row if `load_id` provided, else `None`
+
+**Bug fixed (2026-04-21):** `invoices.organization_id` was NOT NULL → carrier inserts always failed. `CreateInvoiceIn` was also missing `customer_ap_email` field (silently discarded). Both fixed in migration `20260421_carrier_self_managed.sql` + `backend/app/invoices/routes.py`. Frontend now does optimistic prepend on success then background re-fetch.
 
 ---
 
@@ -552,6 +556,8 @@ supabase/migrations/
   20260330_carrier_compliance_doctype_fix.sql     ← drop/replace doc_type CHECK constraint
   20260331_messages_table.sql                     ← messages table + RLS + grants (was missing)
   20260331_doc_date_fields.sql                    ← issued_at on compliance_documents + invoice_documents
+  20260410_carrier_portal_mode.sql
+  20260421_carrier_self_managed.sql               ← drops NOT NULL from loads/invoices.organization_id; auth.uid() RLS for carrier INSERT/SELECT/UPDATE
 ```
 
 ### Supabase Client Rules

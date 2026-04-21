@@ -128,11 +128,16 @@ export default function InvoicesPage() {
           notes: form.notes || null,
         }),
       });
-      const json = await res.json() as { error?: string };
+      const json = await res.json() as { data?: InvoiceWithLoad; error?: string };
       if (!res.ok || json.error) throw new Error(json.error ?? "Failed to create invoice");
       setShowForm(false);
       setForm(EMPTY_FORM);
-      await fetchData(carrier.id);
+      // Immediately prepend the new invoice so the user sees it at once
+      if (json.data) {
+        setInvoices((prev) => [json.data as InvoiceWithLoad, ...prev]);
+      }
+      // Re-fetch in background to get the DB-joined data (load lane, etc.)
+      void fetchData(carrier.id);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to create invoice");
     } finally { setSubmitting(false); }

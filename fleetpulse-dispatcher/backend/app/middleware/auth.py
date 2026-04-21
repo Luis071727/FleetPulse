@@ -100,6 +100,36 @@ def _resolve_user_from_sub(sub: str) -> CurrentUser:
     user = result.data if result else None
 
     if not user:
+        # Carrier portal users authenticate via Supabase OTP/magic-link directly —
+        # they have carriers.user_id set but no row in the users table.
+        try:
+            c_result = (
+                sb.table("carriers")
+                .select("id, organization_id")
+                .eq("user_id", sub)
+                .limit(1)
+                .maybe_single()
+                .execute()
+            )
+            carrier = c_result.data if c_result else None
+        except Exception:
+            carrier = None
+
+        if carrier:
+            virtual = {
+                "id": sub,
+                "organization_id": carrier.get("organization_id"),
+                "carrier_id": carrier.get("id"),
+                "role": "carrier_free",
+            }
+            _user_cache[sub] = virtual
+            return CurrentUser(
+                user_id=sub,
+                organization_id=carrier.get("organization_id"),
+                carrier_id=carrier.get("id"),
+                role="carrier_free",
+            )
+
         logger.warning("Auth: user row not found for sub=%s", sub)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
