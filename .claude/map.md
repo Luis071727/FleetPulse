@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-22 (Bug fix: carrier portal rate/net-profit/RPM not displaying)
+Last updated: 2026-04-22 (Bug fix: carrier portal blocked when Supabase user also has dispatcher_admin role in public.users)
 
 ---
 
@@ -50,7 +50,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | API calls | `services/api.ts:103–129` | `login`, `signup`, `inviteCarrier`, `acceptInvite` |
 | Backend route | `backend/app/auth/routes.py` | `POST /auth/login`, `/auth/signup`, `/auth/invite/carrier`, `/auth/accept-invite` |
 | Backend service | `backend/app/auth/service.py` | Supabase Auth Admin API |
-| Middleware | `backend/app/middleware/auth.py` | JWT decode, `CurrentUser`, role checks; fallback: if no `users` row found, looks up `carriers.user_id = sub` and builds virtual CurrentUser (covers magic-link carrier portal sessions) |
+| Middleware | `backend/app/middleware/auth.py` | JWT decode, `CurrentUser`, role checks; fallback: if no `users` row found, looks up `carriers.user_id = sub` and builds virtual CurrentUser (covers magic-link carrier portal sessions); even when a `users` row IS found, also checks `carriers.user_id = sub` to populate `carrier_id` if not set — handles dispatcher users who are also linked to a carrier account |
 | Token storage | `services/api.ts:22–36` | `getToken()`, `setToken()`, `clearAuth()` stored in localStorage `fleetpulse:token` |
 
 **Auth flow:** Login → JWT returned → stored in localStorage → injected on every `apiFetch` call.
@@ -109,11 +109,15 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 - `managed` (default): read-only — no Log Load button, no status advance, no edit, no delete
 - `self_managed`: full CRUD — Log Load form visible, status advance/edit/delete on detail page
 
-**Self-managed load creation:** `POST /api/v1/loads` — body: `{origin, destination, pickup_date?, delivery_date?, rate, broker_name?, customer_ap_email?, notes?}`; `carrier_id` resolved from JWT, `org_id = None`
+**Self-managed load creation:** `POST /api/v1/loads` — body: `{origin, destination, pickup_date?, delivery_date?, rate, broker_name?, customer_ap_email?, notes?}`; `carrier_id` and `org_id` both resolved from JWT via auth middleware (`user.carrier_id`, `user.organization_id`)
 
 **Status advance:** `STATUS_SEQUENCE = ["logged", "in_transit", "delivered"]`; `NEXT_STATUS_LABEL = {logged: "Start Transit", in_transit: "Mark Delivered"}`; calls `PATCH /api/v1/loads/{id}`
 
 **Bug fixed (2026-04-21):** `loads.organization_id` was NOT NULL → carrier inserts always failed (backend 500). Migration `20260421_carrier_self_managed.sql` drops NOT NULL and adds auth.uid()-based RLS SELECT/INSERT/UPDATE policies. Frontend now does optimistic prepend on success then background re-fetch.
+
+**Bug fixed (2026-04-22, org_id):** `create_load` set `org_id = None` for carrier callers — NOT NULL violation. Fixed to use `user.organization_id` (populated by middleware from carriers table).
+
+**Bug fixed (2026-04-22, dual-role):** If the carrier's Supabase auth UID also had a `public.users` row with role=`dispatcher_admin` (e.g. same account used for dispatcher signup), `create_load` entered the dispatcher branch and raised 400 "carrier_id required". Fixed in two places: (1) middleware now always checks `carriers.user_id = sub` even when a users row is found, populating `carrier_id`; (2) `create_load` adds a middle branch — `is_dispatcher` with no `payload.carrier_id` but `user.carrier_id` set → falls through to carrier creation path.
 
 **Bug fixed (2026-04-22):** `create_load` wrote rate to `load_rate` only — `loads.rate` stayed NULL. Carrier portal reads `rate` from Supabase, so rate/net-profit/RPM all showed blank. Fix: `create_load` now writes both `rate` and `load_rate`; `update_load` keeps both in sync. `LoadRow` type now includes `load_rate`, `net_profit`, `rpm`, `net_rpm`, `broker_name`, `customer_ap_email`, `deleted_at`. Load detail page (`[loadId]/page.tsx`) has a financial summary card (Rate / Net Profit / Rate per Mile). List-page `LoadCard` and edit-form rate init both fall back to `load_rate` for pre-fix loads.
 
@@ -200,7 +204,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 - `managed`: invoice list visible, no create/modify actions
 - `self_managed`: "New Invoice" button + Mark Paid / Send / Delete per invoice
 
-**New invoice creation:** body: `{load_id?, amount, invoice_number?, issued_date?, due_date?, customer_ap_email?, notes?}`; `carrier_id` resolved from JWT; `org_id` inherited from load row if `load_id` provided, else `None`
+**New invoice creation:** body: `{load_id?, amount, invoice_number?, issued_date?, due_date?, customer_ap_email?, notes?}`; `carrier_id` and `org_id` both resolved from JWT via auth middleware (`user.carrier_id`, `user.organization_id`)
 
 **Bug fixed (2026-04-21):** `invoices.organization_id` was NOT NULL → carrier inserts always failed. `CreateInvoiceIn` was also missing `customer_ap_email` field (silently discarded). Both fixed in migration `20260421_carrier_self_managed.sql` + `backend/app/invoices/routes.py`. Frontend now does optimistic prepend on success then background re-fetch.
 
