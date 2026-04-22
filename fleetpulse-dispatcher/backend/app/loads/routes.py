@@ -77,15 +77,19 @@ def create_load(
     sb = get_supabase()
 
     # Resolve org_id and carrier_id based on caller role
-    if is_dispatcher:
+    if is_dispatcher and payload.carrier_id:
         org_id = user.organization_id
         carrier_id = payload.carrier_id
-        if not carrier_id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="carrier_id required for dispatchers")
+    elif is_dispatcher and user.carrier_id:
+        # Dispatcher who is also linked to a carrier (e.g. owner-operator) — treat as carrier
+        org_id = user.organization_id
+        carrier_id = user.carrier_id
+    elif is_dispatcher:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="carrier_id required for dispatchers")
     else:
         if not user.carrier_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-        org_id = None
+        org_id = user.organization_id
         carrier_id = user.carrier_id
 
     # Look up or create broker (optional for self-managed carriers)
@@ -129,6 +133,7 @@ def create_load(
         "destination_city": dest_city or None,
         "destination_state": dest_state or None,
         "load_rate": payload.rate,
+        "rate": payload.rate,   # carrier portal reads this column via Supabase
         "miles": miles,
         "fuel_cost": payload.fuel_cost,
         "driver_pay": driver_pay,
@@ -273,7 +278,7 @@ def update_load(
             updates["rpm"] = rpm
             updates["net_rpm"] = net_rpm
     if "rate" in updates:
-        updates["load_rate"] = updates.pop("rate")
+        updates["load_rate"] = updates["rate"]   # keep both columns in sync
 
     if "origin" in updates or "destination" in updates:
         current = next((ld for ld in _LOADS if ld.get("id") == load_id), None)

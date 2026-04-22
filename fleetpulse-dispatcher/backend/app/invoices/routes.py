@@ -188,22 +188,20 @@ def create_invoice(
     sb = get_supabase()
 
     # Resolve org_id and carrier_id
-    if is_dispatcher:
+    if is_dispatcher and payload.carrier_id:
         org_id = user.organization_id
         carrier_id = payload.carrier_id
+    elif is_dispatcher and user.carrier_id:
+        # Dispatcher also linked to a carrier — treat as carrier
+        org_id = user.organization_id
+        carrier_id = user.carrier_id
+    elif is_dispatcher:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="carrier_id required for dispatchers")
     else:
         if not user.carrier_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
         carrier_id = user.carrier_id
-        # Try to inherit org_id from the linked load row
-        org_id = None
-        if payload.load_id:
-            try:
-                ld_res = sb.table("loads").select("organization_id").eq("id", payload.load_id).maybe_single().execute()
-                if ld_res and ld_res.data:
-                    org_id = ld_res.data.get("organization_id")
-            except Exception:
-                pass
+        org_id = user.organization_id
 
     linked_load = _get_loads_lookup(org_id or "", sb=sb).get(payload.load_id) if payload.load_id and org_id else None
 

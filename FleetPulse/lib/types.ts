@@ -50,7 +50,7 @@ export interface Database {
       loads: {
         Row: {
           id: string;
-          load_number: string;
+          load_number: string | null;
           carrier_id: string | null;
           dispatcher_id: string | null;
           origin: string;
@@ -59,13 +59,20 @@ export interface Database {
           delivery_date: string | null;
           status: LoadStatus;
           rate: number | null;
+          load_rate: number | null;
+          net_profit: number | null;
+          rpm: number | null;
+          net_rpm: number | null;
+          broker_name: string | null;
+          customer_ap_email: string | null;
           notes: string | null;
+          deleted_at: string | null;
           created_at: string | null;
           updated_at: string | null;
         };
         Insert: {
           id?: string;
-          load_number: string;
+          load_number?: string | null;
           carrier_id?: string | null;
           dispatcher_id?: string | null;
           origin: string;
@@ -74,7 +81,14 @@ export interface Database {
           delivery_date?: string | null;
           status?: LoadStatus;
           rate?: number | null;
+          load_rate?: number | null;
+          net_profit?: number | null;
+          rpm?: number | null;
+          net_rpm?: number | null;
+          broker_name?: string | null;
+          customer_ap_email?: string | null;
           notes?: string | null;
+          deleted_at?: string | null;
           created_at?: string | null;
           updated_at?: string | null;
         };
