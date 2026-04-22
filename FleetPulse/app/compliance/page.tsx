@@ -21,7 +21,6 @@ export default function CompliancePage() {
     typeof window === "undefined" ? null : createBrowserSupabaseClient(),
   );
   const [carrier, setCarrier] = useState<CarrierRow | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
   const [docs, setDocs] = useState<ComplianceDocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +35,6 @@ export default function CompliancePage() {
       setLoading(false);
       return;
     }
-    setUserId(user.id);
 
     const carrierResult = await supabase.from("carriers").select("*").eq("user_id", user.id).limit(1).maybeSingle();
     const carrierData = carrierResult.data as CarrierRow | null;
@@ -47,10 +45,12 @@ export default function CompliancePage() {
     }
     setCarrier(carrierData);
 
+    // Only surface active (not superseded) documents — renewals replace them.
     const docsResult = await supabase
       .from("compliance_documents")
       .select("*")
       .eq("carrier_id", carrierData.id)
+      .or("is_active.is.null,is_active.eq.true")
       .order("expires_at", { ascending: true });
 
     if (docsResult.error) {
@@ -66,7 +66,7 @@ export default function CompliancePage() {
   }, [supabase]);
 
   if (loading) return <p className="text-sm text-brand-slate-light">Loading compliance documents...</p>;
-  if (error || !carrier || !userId) return <p className="text-sm text-brand-danger">{error || "Compliance unavailable."}</p>;
+  if (error || !carrier) return <p className="text-sm text-brand-danger">{error || "Compliance unavailable."}</p>;
 
   return (
     <div className="space-y-6">
@@ -86,7 +86,6 @@ export default function CompliancePage() {
               key={doc.id}
               doc={doc}
               carrierId={carrier.id}
-              currentUserId={userId}
               effectiveStatus={computeComplianceStatus(doc)}
               onRefresh={() => {
                 void refreshDocs();

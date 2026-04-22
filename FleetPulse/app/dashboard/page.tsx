@@ -98,7 +98,6 @@ export default function DashboardPage() {
 
     // Fetch all data in parallel
     const thirtyDaysOut = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    const today = new Date().toISOString();
 
     const [loadsRes, invoicesRes, complianceRes, sessionRes] = await Promise.all([
       supabase
@@ -116,6 +115,7 @@ export default function DashboardPage() {
         .from("compliance_documents")
         .select("*")
         .eq("carrier_id", carrierData.id)
+        .or("is_active.is.null,is_active.eq.true")  // exclude superseded renewals
         .not("expires_at", "is", null)
         .lte("expires_at", thirtyDaysOut)   // expired OR expiring within 30 days
         .order("expires_at", { ascending: true }),
