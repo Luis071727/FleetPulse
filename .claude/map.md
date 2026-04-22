@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-22 (Bug fix: carrier portal blocked when Supabase user also has dispatcher_admin role in public.users)
+Last updated: 2026-04-22 (Carrier compliance lifecycle: renew flow, central status engine, pending-actions sync)
 
 ---
 
@@ -491,19 +491,23 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 | Layer | File | Notes |
 |-------|------|-------|
-| DB table (enhanced) | `compliance_documents` | Migration `20260330_carrier_compliance.sql` adds: `issue_date`, `file_url`, `file_name`, `file_size`, `request_id`, `organization_id`, `uploaded_at` |
-| DB table (new) | `carrier_document_requests` | Same migration — token, carrier_id, org_id, doc_types[], 72h expiry |
+| DB table (enhanced) | `compliance_documents` | Migration `20260330_carrier_compliance.sql` adds: `issue_date`, `file_url`, `file_name`, `file_size`, `request_id`, `organization_id`, `uploaded_at`. Migration `20260422_compliance_lifecycle.sql` adds `superseded_at`, `is_active` (boolean NOT NULL DEFAULT true) for renewal versioning |
+| DB table (new) | `carrier_document_requests` | Same 20260330 migration — token, carrier_id, org_id, doc_types[], 72h expiry |
+| DB table (derived) | `compliance_pending_actions` | Migration `20260422_compliance_lifecycle.sql` — cached pending-action rows rebuilt by `sync_pending_actions()` after every mutation; columns: organization_id, carrier_id, doc_id, doc_type, kind (expired/expiring_soon/missing), expires_at, days_remaining, notified_at |
 | Constraint fix | — | Migration `20260330_carrier_compliance_doctype_fix.sql` — drops old `doc_type_check`, adds one covering all types |
 | Backend module | `backend/app/carrier_compliance/` | `__init__.py` + `service.py` + `routes.py` |
-| Backend service | `backend/app/carrier_compliance/service.py` | `CarrierComplianceService` — create_request, get_request_by_token, upload_file, upload_file_direct, list_documents (signed URLs), _maybe_fulfill, **update_document**, **delete_document** |
-| Backend routes | `backend/app/carrier_compliance/routes.py` | **7 endpoints** (see below) |
+| Central status engine | `backend/app/carrier_compliance/service.py:evaluate_document_status(doc)` | Pure function: `expired` if expires_at<today, `expiring_soon` if within 30 days, else `active`; no expiry → `active` |
+| Backend service | `backend/app/carrier_compliance/service.py` | `CarrierComplianceService` — create_request, get_request_by_token, upload_file, upload_file_direct, **renew_document**, list_documents (signed URLs, adds `effective_status` per doc), _maybe_fulfill, update_document, delete_document, **sync_pending_actions**, **list_pending_actions** |
+| Backend routes | `backend/app/carrier_compliance/routes.py` | **10 endpoints** (see below) |
 | Router registration | `backend/app/main.py` | `carrier_compliance_router` included in api_v1 |
-| API calls | `services/api.ts` | `requestCarrierDocs`, `validateCarrierUploadToken`, `uploadCarrierFile`, `uploadCarrierFileDirect`, `listCarrierDocuments`, **`updateCarrierDoc`**, **`deleteCarrierDoc`** |
+| API calls | `services/api.ts` | `requestCarrierDocs`, `validateCarrierUploadToken`, `uploadCarrierFile`, `uploadCarrierFileDirect`, `listCarrierDocuments`, `updateCarrierDoc`, `deleteCarrierDoc` |
 | Public upload page | `app/(public)/carrier-upload/[token]/page.tsx` | Carrier/owner-facing; per-doc issue_date + expiry_date inputs |
 | **Detail modal** | `components/CarrierDetailModal.tsx` | **Primary entry point** — tabbed modal with Info + Documents tabs; inline edit (doc_type, issue_date, expires_at) + delete per doc; optimistic UI |
 | Compliance modal | `components/CarrierComplianceModal.tsx` | Standalone compliance hub — still usable independently |
 | Request modal | `components/CarrierDocumentRequestModal.tsx` | Checkbox doc type selector → generates magic link; used inside CarrierDetailModal |
 | Carriers page | `app/(dispatcher)/carriers/page.tsx` | Clicking carrier opens `CarrierDetailModal` (replaced old drawer + CarrierComplianceModal) |
+| Carrier-portal row | `FleetPulse/components/ComplianceDocRow.tsx` | Redesigned 2026-04-22: shows Issued/Expires dates + StatusBadge + single "Renew Document" button that opens `RenewDocumentModal`; no raw upload widget |
+| Carrier-portal renew modal | `FleetPulse/components/RenewDocumentModal.tsx` | Modal requiring Issue Date + Expiration Date + File; validates expiry>issue; POSTs multipart to `/carrier-compliance/carriers/{id}/renew` with carrier Bearer token; calls `onRenewed` → parent re-fetches |
 | Storage bucket | Supabase Storage `carrier-documents` | Private bucket — must be created manually |
 
 **API endpoints:**
@@ -511,19 +515,31 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 - `GET /api/v1/carrier-compliance/upload/{token}` — **public** — validate token, returns carrier context
 - `POST /api/v1/carrier-compliance/upload/{token}/files` — **public** — multipart (file + doc_type + issue_date? + expires_at?)
 - `POST /api/v1/carrier-compliance/carriers/{id}/documents` — dispatcher auth — direct upload
-- `GET /api/v1/carrier-compliance/carriers/{id}/documents` — auth — returns `{ documents[], requests[] }`
-- `PATCH /api/v1/carrier-compliance/carriers/{id}/documents/{doc_id}` — dispatcher — update doc_type, issue_date, expires_at
-- `DELETE /api/v1/carrier-compliance/carriers/{id}/documents/{doc_id}` — dispatcher — delete document record
+- `POST /api/v1/carrier-compliance/carriers/{id}/renew` — **any authenticated user** (dispatcher or owning carrier) — multipart (file + doc_type + issue_date + expires_at, all required); supersedes existing active doc of same type, inserts new one, runs `sync_pending_actions`
+- `GET /api/v1/carrier-compliance/carriers/{id}/documents` — auth — returns `{ documents[], requests[] }`; each doc has `effective_status` computed by status engine
+- `GET /api/v1/carrier-compliance/carriers/{id}/pending-actions` — auth (dispatcher or owning carrier) — cached pending actions with live compute fallback
+- `GET /api/v1/carrier-compliance/carrier/pending-actions` — auth — JWT-scoped to caller's `carrier_id`
+- `PATCH /api/v1/carrier-compliance/carriers/{id}/documents/{doc_id}` — dispatcher — update doc_type, issue_date, expires_at (triggers sync)
+- `DELETE /api/v1/carrier-compliance/carriers/{id}/documents/{doc_id}` — dispatcher — delete (triggers sync)
+
+**Pending-action lifecycle:**
+1. Any mutation (upload_file / upload_file_direct / renew_document / update_document / delete_document) calls `sync_pending_actions(carrier_id, org_id)`
+2. Sync loads all `compliance_documents` for carrier, picks newest active doc per doc_type, evaluates status via `evaluate_document_status`
+3. Rows where status ≠ `active` are persisted to `compliance_pending_actions` (replace-all semantics); active rows remove any prior pending entry
+4. Carrier portal dashboard + dispatcher CarrierDetailModal read via `list_pending_actions` (falls back to live compute if table unreachable)
+
+**Renewal lifecycle:** `renew_document()` marks prior `is_active=true` rows for the same doc_type as `is_active=false` with `superseded_at=now()`, inserts a fresh row (is_active=true, new issue_date+expires_at), then calls `sync_pending_actions`. Carrier portal compliance + dashboard queries filter `is_active.is.null,is_active.eq.true` so the superseded record is invisible to UI immediately.
 
 **Token lifecycle:** same as invoice paperwork — UUID → 72h → pending / fulfilled / expired
 
 **File storage paths:**
 - Token upload: `{org_id}/{carrier_id}/{request_id}/{filename}`
 - Direct upload: `{org_id}/{carrier_id}/direct/{filename}`
+- Renewal upload: `{org_id}/{carrier_id}/renewals/{filename}`
 
 **Valid doc_types:** `MC_AUTHORITY`, `W9`, `VOID_CHECK`, `CARRIER_AGREEMENT`, `NOA`, `COI`, `CDL`, `OTHER`
 
-**Expiry status logic (frontend):** expired if `expires_at < today`; expiring_soon if within 30 days; active otherwise
+**Expiry status logic:** Canonical function `evaluate_document_status()` in backend service; carrier portal compliance page mirrors with `computeComplianceStatus()` client-side. Thresholds: expired=`expires_at<today`, expiring_soon=within 30 days, else active.
 
 ---
 
@@ -564,6 +580,7 @@ supabase/migrations/
   20260331_doc_date_fields.sql                    ← issued_at on compliance_documents + invoice_documents
   20260410_carrier_portal_mode.sql
   20260421_carrier_self_managed.sql               ← drops NOT NULL from loads/invoices.organization_id; auth.uid() RLS for carrier INSERT/SELECT/UPDATE
+  20260422_compliance_lifecycle.sql                ← compliance_documents.is_active + superseded_at; compliance_pending_actions (derived-state table)
 ```
 
 ### Supabase Client Rules

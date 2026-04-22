@@ -159,6 +159,8 @@ export interface Database {
           expires_at: string | null;
           status: ComplianceStatus;
           uploaded_at: string | null;
+          is_active: boolean | null;
+          superseded_at: string | null;
         };
         Insert: {
           id?: string;
@@ -171,6 +173,8 @@ export interface Database {
           expires_at?: string | null;
           status?: ComplianceStatus;
           uploaded_at?: string | null;
+          is_active?: boolean | null;
+          superseded_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["compliance_documents"]["Insert"]>;
         Relationships: [];

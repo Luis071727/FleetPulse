@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from uuid import uuid4
 
 from app.config import get_supabase, settings
@@ -11,6 +11,38 @@ VALID_DOC_TYPES = {
     "NOA", "COI", "CDL", "OTHER",
 }
 STORAGE_BUCKET = "carrier-documents"
+
+EXPIRING_SOON_WINDOW_DAYS = 30
+
+
+# ── Central Status Engine ─────────────────────────────────────────────────────
+
+def evaluate_document_status(doc: dict) -> str:
+    """Return 'active' | 'expiring_soon' | 'expired' for a compliance doc.
+
+    expires_at is canonical. Missing expiry → 'active' (we can't evaluate it).
+    """
+    expires_at = doc.get("expires_at")
+    if not expires_at:
+        return "active"
+    try:
+        exp = _parse_date(expires_at)
+    except (ValueError, TypeError):
+        return "active"
+
+    today = date.today()
+    if exp < today:
+        return "expired"
+    if (exp - today).days <= EXPIRING_SOON_WINDOW_DAYS:
+        return "expiring_soon"
+    return "active"
+
+
+def _parse_date(value: str) -> date:
+    # handles both "YYYY-MM-DD" and full ISO timestamps
+    if len(value) >= 10:
+        return date.fromisoformat(value[:10])
+    raise ValueError(f"Cannot parse date: {value!r}")
 
 
 class CarrierComplianceService:
@@ -64,7 +96,6 @@ class CarrierComplianceService:
         if not req:
             return None
 
-        # Check expiry
         expires_at = req.get("expires_at")
         if expires_at:
             try:
@@ -79,7 +110,6 @@ class CarrierComplianceService:
             except (ValueError, TypeError):
                 pass
 
-        # Enrich with carrier name
         try:
             carrier_result = (
                 sb.table("carriers")
@@ -119,43 +149,22 @@ class CarrierComplianceService:
         carrier_id = req["carrier_id"]
         org_id = req["organization_id"]
 
-        safe_name = filename.replace("/", "_").replace("..", "_")
-        storage_path = f"{org_id}/{carrier_id}/{request_id}/{safe_name}"
-
-        try:
-            sb.storage.from_(STORAGE_BUCKET).upload(
-                storage_path,
-                file_bytes,
-                file_options={"content-type": content_type, "upsert": "true"},
-            )
-        except Exception as exc:
-            logger.error("Storage upload failed: %s", exc)
-            raise RuntimeError(f"File upload to storage failed: {exc}") from exc
-
-        doc_row: dict = {
-            "id": str(uuid4()),
-            "organization_id": org_id,
-            "carrier_id": carrier_id,
-            "request_id": request_id,
-            "doc_type": doc_type,
-            "file_name": safe_name,
-            "file_url": storage_path,
-            "file_size": len(file_bytes),
-            "status": "active",
-        }
-        if issue_date:
-            doc_row["issue_date"] = issue_date
-        if expires_at:
-            doc_row["expires_at"] = expires_at
-
-        try:
-            result = sb.table("compliance_documents").insert(doc_row).execute()
-            doc = result.data[0] if result.data else doc_row
-        except Exception as exc:
-            logger.error("Failed to persist compliance_documents record: %s", exc)
-            raise RuntimeError(f"Could not save document record: {exc}") from exc
+        doc = self._store_document(
+            sb=sb,
+            carrier_id=carrier_id,
+            org_id=org_id,
+            doc_type=doc_type,
+            filename=filename,
+            file_bytes=file_bytes,
+            content_type=content_type,
+            issue_date=issue_date,
+            expires_at=expires_at,
+            request_id=request_id,
+            storage_prefix=f"{org_id}/{carrier_id}/{request_id}",
+        )
 
         self._maybe_fulfill_request(req, sb)
+        self.sync_pending_actions(carrier_id, org_id)
         return doc
 
     def upload_file_direct(
@@ -171,42 +180,69 @@ class CarrierComplianceService:
     ) -> dict:
         """Direct dispatcher upload — no magic-link token required."""
         sb = get_supabase()
+        doc = self._store_document(
+            sb=sb,
+            carrier_id=carrier_id,
+            org_id=org_id,
+            doc_type=doc_type,
+            filename=filename,
+            file_bytes=file_bytes,
+            content_type=content_type,
+            issue_date=issue_date,
+            expires_at=expires_at,
+            request_id=None,
+            storage_prefix=f"{org_id}/{carrier_id}/direct",
+        )
+        self.sync_pending_actions(carrier_id, org_id)
+        return doc
 
-        safe_name = filename.replace("/", "_").replace("..", "_")
-        storage_path = f"{org_id}/{carrier_id}/direct/{safe_name}"
+    def renew_document(
+        self,
+        carrier_id: str,
+        org_id: str,
+        doc_type: str,
+        filename: str,
+        file_bytes: bytes,
+        content_type: str,
+        issue_date: str,
+        expires_at: str,
+    ) -> dict:
+        """Replace any active/expired document of the same type and insert a
+        fresh one. Callers (dispatcher direct upload, carrier portal renew) both
+        flow through here so the lifecycle is identical.
+        """
+        if not issue_date or not expires_at:
+            raise ValueError("Issue date and expiration date are required for renewal")
+        if doc_type not in VALID_DOC_TYPES:
+            raise ValueError(f"Invalid doc_type: {doc_type}")
 
+        sb = get_supabase()
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        # Mark any prior active doc of this type as superseded so sync
+        # recomputes status from the newest record.
         try:
-            sb.storage.from_(STORAGE_BUCKET).upload(
-                storage_path,
-                file_bytes,
-                file_options={"content-type": content_type, "upsert": "true"},
-            )
+            sb.table("compliance_documents").update({
+                "is_active": False,
+                "superseded_at": now_iso,
+            }).eq("carrier_id", carrier_id).eq("doc_type", doc_type).eq("is_active", True).execute()
         except Exception as exc:
-            logger.error("Storage upload failed: %s", exc)
-            raise RuntimeError(f"File upload to storage failed: {exc}") from exc
+            logger.warning("Could not mark prior %s docs as superseded for carrier %s: %s", doc_type, carrier_id, exc)
 
-        doc_row: dict = {
-            "id": str(uuid4()),
-            "organization_id": org_id,
-            "carrier_id": carrier_id,
-            "doc_type": doc_type,
-            "file_name": safe_name,
-            "file_url": storage_path,
-            "file_size": len(file_bytes),
-            "status": "active",
-        }
-        if issue_date:
-            doc_row["issue_date"] = issue_date
-        if expires_at:
-            doc_row["expires_at"] = expires_at
-
-        try:
-            result = sb.table("compliance_documents").insert(doc_row).execute()
-            doc = result.data[0] if result.data else doc_row
-        except Exception as exc:
-            logger.error("Failed to persist compliance_documents record: %s", exc)
-            raise RuntimeError(f"Could not save document record: {exc}") from exc
-
+        doc = self._store_document(
+            sb=sb,
+            carrier_id=carrier_id,
+            org_id=org_id,
+            doc_type=doc_type,
+            filename=filename,
+            file_bytes=file_bytes,
+            content_type=content_type,
+            issue_date=issue_date,
+            expires_at=expires_at,
+            request_id=None,
+            storage_prefix=f"{org_id}/{carrier_id}/renewals",
+        )
+        self.sync_pending_actions(carrier_id, org_id)
         return doc
 
     def list_documents(self, carrier_id: str, org_id: str) -> dict:
@@ -225,6 +261,8 @@ class CarrierComplianceService:
             )
             raw_docs = doc_result.data or []
             for doc in raw_docs:
+                # Computed status, doesn't require DB writes on read.
+                doc["effective_status"] = evaluate_document_status(doc)
                 path = doc.get("file_url", "")
                 if path and not path.startswith("http"):
                     try:
@@ -271,10 +309,13 @@ class CarrierComplianceService:
                 .eq("carrier_id", carrier_id)
                 .execute()
             )
-            return result.data[0] if result.data else None
+            doc = result.data[0] if result.data else None
         except Exception as exc:
             logger.error("Failed to update compliance document %s: %s", doc_id, exc)
             return None
+        if doc is not None:
+            self.sync_pending_actions(carrier_id, org_id)
+        return doc
 
     def delete_document(self, doc_id: str, carrier_id: str, org_id: str) -> bool:
         sb = get_supabase()
@@ -286,12 +327,216 @@ class CarrierComplianceService:
                 .eq("carrier_id", carrier_id)
                 .execute()
             )
-            return bool(result.data)
+            deleted = bool(result.data)
         except Exception as exc:
             logger.error("Failed to delete compliance document %s: %s", doc_id, exc)
             return False
+        if deleted:
+            self.sync_pending_actions(carrier_id, org_id)
+        return deleted
+
+    # ── Pending Actions (derived state) ───────────────────────────────────────
+
+    def sync_pending_actions(self, carrier_id: str, org_id: str | None = None) -> list[dict]:
+        """Rebuild the pending-action rows for a carrier from their active
+        compliance documents. Called after any mutation (upload / renew /
+        update / delete). Safe to call repeatedly — it clears and reinserts.
+        """
+        sb = get_supabase()
+        try:
+            docs_result = (
+                sb.table("compliance_documents")
+                .select("*")
+                .eq("carrier_id", carrier_id)
+                .execute()
+            )
+            raw_docs = docs_result.data or []
+        except Exception as exc:
+            logger.debug("sync_pending_actions: doc fetch failed for carrier %s: %s", carrier_id, exc)
+            return []
+
+        # Newest active doc per type wins. If no active doc, fall back to the
+        # newest record so we still evaluate expiry.
+        by_type: dict[str, dict] = {}
+        for doc in raw_docs:
+            dt = doc.get("doc_type")
+            if not dt:
+                continue
+            is_active = doc.get("is_active", True)
+            uploaded = doc.get("uploaded_at") or doc.get("created_at") or ""
+            existing = by_type.get(dt)
+            # Prefer active docs; within the same active-ness, prefer newest.
+            if existing is None:
+                by_type[dt] = doc
+                continue
+            existing_active = existing.get("is_active", True)
+            if is_active and not existing_active:
+                by_type[dt] = doc
+            elif is_active == existing_active:
+                if (uploaded or "") > (existing.get("uploaded_at") or existing.get("created_at") or ""):
+                    by_type[dt] = doc
+
+        resolved_org = org_id
+        today = date.today()
+        actions: list[dict] = []
+        for dt, doc in by_type.items():
+            status = evaluate_document_status(doc)
+            if status == "active":
+                continue
+            expires_raw = doc.get("expires_at")
+            days_remaining: int | None = None
+            if expires_raw:
+                try:
+                    days_remaining = (_parse_date(expires_raw) - today).days
+                except (ValueError, TypeError):
+                    days_remaining = None
+            actions.append({
+                "organization_id": resolved_org or doc.get("organization_id"),
+                "carrier_id": carrier_id,
+                "doc_id": doc.get("id"),
+                "doc_type": dt,
+                "kind": status,
+                "expires_at": expires_raw[:10] if expires_raw else None,
+                "days_remaining": days_remaining,
+            })
+
+        # Replace existing rows for this carrier with the freshly-computed set.
+        try:
+            sb.table("compliance_pending_actions").delete().eq("carrier_id", carrier_id).execute()
+        except Exception as exc:
+            logger.debug("Could not clear pending actions for carrier %s: %s", carrier_id, exc)
+
+        if not actions:
+            return []
+
+        try:
+            sb.table("compliance_pending_actions").insert(actions).execute()
+        except Exception as exc:
+            logger.debug("Could not insert pending actions for carrier %s: %s", carrier_id, exc)
+
+        return actions
+
+    def list_pending_actions(self, carrier_id: str) -> list[dict]:
+        """Read cached pending actions; if the cache is empty or unavailable,
+        compute them on the fly from the documents. This makes the dashboard
+        resilient even when the pending-actions table is missing.
+        """
+        sb = get_supabase()
+        try:
+            result = (
+                sb.table("compliance_pending_actions")
+                .select("*")
+                .eq("carrier_id", carrier_id)
+                .order("days_remaining", desc=False)
+                .execute()
+            )
+            rows = result.data or []
+            if rows:
+                return rows
+        except Exception:
+            logger.debug("pending_actions read failed — falling back to live compute")
+
+        # Fallback: compute without persisting.
+        try:
+            docs_result = (
+                sb.table("compliance_documents")
+                .select("*")
+                .eq("carrier_id", carrier_id)
+                .execute()
+            )
+            raw_docs = docs_result.data or []
+        except Exception:
+            return []
+
+        today = date.today()
+        by_type: dict[str, dict] = {}
+        for doc in raw_docs:
+            dt = doc.get("doc_type")
+            if not dt:
+                continue
+            existing = by_type.get(dt)
+            if existing is None or (doc.get("uploaded_at") or "") > (existing.get("uploaded_at") or ""):
+                by_type[dt] = doc
+
+        actions: list[dict] = []
+        for dt, doc in by_type.items():
+            status = evaluate_document_status(doc)
+            if status == "active":
+                continue
+            expires_raw = doc.get("expires_at")
+            days_remaining: int | None = None
+            if expires_raw:
+                try:
+                    days_remaining = (_parse_date(expires_raw) - today).days
+                except (ValueError, TypeError):
+                    days_remaining = None
+            actions.append({
+                "carrier_id": carrier_id,
+                "doc_id": doc.get("id"),
+                "doc_type": dt,
+                "kind": status,
+                "expires_at": expires_raw[:10] if expires_raw else None,
+                "days_remaining": days_remaining,
+            })
+        return actions
 
     # ── private ───────────────────────────────────────────────────────────────
+
+    def _store_document(
+        self,
+        *,
+        sb,
+        carrier_id: str,
+        org_id: str,
+        doc_type: str,
+        filename: str,
+        file_bytes: bytes,
+        content_type: str,
+        issue_date: str | None,
+        expires_at: str | None,
+        request_id: str | None,
+        storage_prefix: str,
+    ) -> dict:
+        safe_name = filename.replace("/", "_").replace("..", "_")
+        storage_path = f"{storage_prefix}/{safe_name}"
+
+        try:
+            sb.storage.from_(STORAGE_BUCKET).upload(
+                storage_path,
+                file_bytes,
+                file_options={"content-type": content_type, "upsert": "true"},
+            )
+        except Exception as exc:
+            logger.error("Storage upload failed: %s", exc)
+            raise RuntimeError(f"File upload to storage failed: {exc}") from exc
+
+        doc_row: dict = {
+            "id": str(uuid4()),
+            "organization_id": org_id,
+            "carrier_id": carrier_id,
+            "doc_type": doc_type,
+            "file_name": safe_name,
+            "file_url": storage_path,
+            "file_size": len(file_bytes),
+            "status": "active",
+            "is_active": True,
+        }
+        if request_id:
+            doc_row["request_id"] = request_id
+        if issue_date:
+            doc_row["issue_date"] = issue_date
+            # Mirror into issued_at so the carrier portal (reads Supabase
+            # directly via the `issued_at` column) sees the value immediately.
+            doc_row["issued_at"] = issue_date
+        if expires_at:
+            doc_row["expires_at"] = expires_at
+
+        try:
+            result = sb.table("compliance_documents").insert(doc_row).execute()
+            return result.data[0] if result.data else doc_row
+        except Exception as exc:
+            logger.error("Failed to persist compliance_documents record: %s", exc)
+            raise RuntimeError(f"Could not save document record: {exc}") from exc
 
     def _maybe_fulfill_request(self, req: dict, sb) -> None:
         requested_types = set(req.get("doc_types") or [])
