@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-21 (Bug fix: carrier portal load/invoice creation — nullable org_id, auth fallback, optimistic UI)
+Last updated: 2026-04-22 (Bug fix: carrier portal rate/net-profit/RPM not displaying)
 
 ---
 
@@ -114,6 +114,8 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 **Status advance:** `STATUS_SEQUENCE = ["logged", "in_transit", "delivered"]`; `NEXT_STATUS_LABEL = {logged: "Start Transit", in_transit: "Mark Delivered"}`; calls `PATCH /api/v1/loads/{id}`
 
 **Bug fixed (2026-04-21):** `loads.organization_id` was NOT NULL → carrier inserts always failed (backend 500). Migration `20260421_carrier_self_managed.sql` drops NOT NULL and adds auth.uid()-based RLS SELECT/INSERT/UPDATE policies. Frontend now does optimistic prepend on success then background re-fetch.
+
+**Bug fixed (2026-04-22):** `create_load` wrote rate to `load_rate` only — `loads.rate` stayed NULL. Carrier portal reads `rate` from Supabase, so rate/net-profit/RPM all showed blank. Fix: `create_load` now writes both `rate` and `load_rate`; `update_load` keeps both in sync. `LoadRow` type now includes `load_rate`, `net_profit`, `rpm`, `net_rpm`, `broker_name`, `customer_ap_email`, `deleted_at`. Load detail page (`[loadId]/page.tsx`) has a financial summary card (Rate / Net Profit / Rate per Mile). List-page `LoadCard` and edit-form rate init both fall back to `load_rate` for pre-fix loads.
 
 ---
 
