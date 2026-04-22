@@ -49,9 +49,9 @@ function LoadCard({ load, invoiceNumber }: { load: LoadRow; invoiceNumber?: stri
         </div>
       </div>
       <div className="flex items-center gap-3 shrink-0">
-        {load.rate != null && (
+        {(load.rate ?? load.load_rate) != null && (
           <span className="font-mono text-sm font-semibold text-brand-slate">
-            ${Number(load.rate).toLocaleString()}
+            ${Number(load.rate ?? load.load_rate).toLocaleString()}
           </span>
         )}
         <StatusPill status={load.status} />

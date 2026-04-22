@@ -245,7 +245,7 @@ export default function LoadDetailPage() {
     setEditDest(load.destination ?? "");
     setEditPickup(load.pickup_date ?? "");
     setEditDelivery(load.delivery_date ?? "");
-    setEditRate(String(load.rate ?? ""));
+    setEditRate(String(load.rate ?? load.load_rate ?? ""));
     setEditBroker((load as Record<string, unknown>)["broker_name"] as string ?? "");
     setEditApEmail((load as Record<string, unknown>)["customer_ap_email"] as string ?? "");
     setEditNotes(load.notes ?? "");
@@ -350,11 +350,46 @@ export default function LoadDetailPage() {
             <div className="mt-3 flex flex-wrap gap-4 text-sm text-brand-slate-light">
               <span>Pickup: {load.pickup_date ?? "TBD"}</span>
               <span>Delivery: {load.delivery_date ?? "TBD"}</span>
-              {load.rate !== null && <span>${Number(load.rate).toLocaleString()}</span>}
             </div>
           </div>
           <StatusBadge status={load.status} className="self-start" />
         </div>
+
+        {/* Financial summary */}
+        {(() => {
+          const effectiveRate = load.rate ?? load.load_rate;
+          const showNetProfit = load.net_profit != null && load.net_profit !== effectiveRate;
+          const showRpm = load.rpm != null && load.rpm > 0;
+          if (effectiveRate == null && !showRpm) return null;
+          return (
+            <div className="mt-4 border-t border-brand-border pt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
+              {effectiveRate != null && (
+                <div>
+                  <p className="text-xs text-brand-slate-light">Rate</p>
+                  <p className="mt-0.5 font-mono text-base font-semibold text-brand-slate">
+                    ${Number(effectiveRate).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+              )}
+              {showNetProfit && (
+                <div>
+                  <p className="text-xs text-brand-slate-light">Net Profit</p>
+                  <p className={`mt-0.5 font-mono text-base font-semibold ${(load.net_profit ?? 0) >= 0 ? "text-green-400" : "text-brand-danger"}`}>
+                    ${Number(load.net_profit).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+              )}
+              {showRpm && (
+                <div>
+                  <p className="text-xs text-brand-slate-light">Rate / Mile</p>
+                  <p className="mt-0.5 font-mono text-base font-semibold text-brand-slate">
+                    ${Number(load.rpm).toFixed(2)}<span className="text-xs font-normal text-brand-slate-light">/mi</span>
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </section>
 
       {/* ── Self-managed actions ── */}

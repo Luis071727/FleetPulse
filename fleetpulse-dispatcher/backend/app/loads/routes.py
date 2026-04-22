@@ -129,6 +129,7 @@ def create_load(
         "destination_city": dest_city or None,
         "destination_state": dest_state or None,
         "load_rate": payload.rate,
+        "rate": payload.rate,   # carrier portal reads this column via Supabase
         "miles": miles,
         "fuel_cost": payload.fuel_cost,
         "driver_pay": driver_pay,
@@ -273,7 +274,7 @@ def update_load(
             updates["rpm"] = rpm
             updates["net_rpm"] = net_rpm
     if "rate" in updates:
-        updates["load_rate"] = updates.pop("rate")
+        updates["load_rate"] = updates["rate"]   # keep both columns in sync
 
     if "origin" in updates or "destination" in updates:
         current = next((ld for ld in _LOADS if ld.get("id") == load_id), None)
