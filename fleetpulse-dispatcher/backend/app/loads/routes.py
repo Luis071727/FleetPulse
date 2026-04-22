@@ -85,7 +85,7 @@ def create_load(
     else:
         if not user.carrier_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-        org_id = None
+        org_id = user.organization_id
         carrier_id = user.carrier_id
 
     # Look up or create broker (optional for self-managed carriers)
