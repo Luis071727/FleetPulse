@@ -133,11 +133,28 @@ def _resolve_user_from_sub(sub: str) -> CurrentUser:
         logger.warning("Auth: user row not found for sub=%s", sub)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
-    _user_cache[sub] = user
+    carrier_id = user.get("carrier_id")
+    if not carrier_id:
+        # User may also be linked to a carrier record (e.g. dispatcher who is also an owner-operator).
+        try:
+            c_res = (
+                sb.table("carriers")
+                .select("id")
+                .eq("user_id", sub)
+                .limit(1)
+                .maybe_single()
+                .execute()
+            )
+            if c_res and c_res.data:
+                carrier_id = c_res.data.get("id")
+        except Exception:
+            pass
+
+    _user_cache[sub] = {**user, "carrier_id": carrier_id}
     return CurrentUser(
         user_id=user["id"],
         organization_id=user.get("organization_id"),
-        carrier_id=user.get("carrier_id"),
+        carrier_id=carrier_id,
         role=user.get("role", "carrier_free"),
     )
 
