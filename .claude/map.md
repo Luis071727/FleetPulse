@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-25 (Today's Work dashboard: unified actions engine for dispatcher + carrier portal)
+Last updated: 2026-04-25 (Today's Work dashboard: unified actions engine; carrier portal CTAs navigate to /invoices instead of inline modals)
 
 ---
 
@@ -444,7 +444,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 **Storage bucket:** `load-documents` (existing) — carrier direct uploads go to `{userId}/{loadId}/{docType}_{ts}.ext`.
 **Nav items:** Home (`/dashboard`) · Loads (`/loads`) · Invoices (`/invoices`) · Docs (`/compliance`)
 
-**Today's Work (replaces old 3-type Pending Actions):** Single `GET /api/v1/actions/today` call with Supabase bearer token. Returns unified `TodayAction[]` from backend actions service. CTA handler in dashboard page switches on `action.cta.action` prefix: `copy:` → clipboard, `/compliance` → navigate, `followup:{id}` → open FollowUpModal, `send_invoice:{id}` → open InvoiceSendModal (or direct API call if invoice not in local state). Refresh button re-fetches `loadData()` which re-fetches actions.
+**Today's Work (replaces old 3-type Pending Actions):** Single `GET /api/v1/actions/today` call with Supabase bearer token. Returns unified `TodayAction[]` from backend actions service. CTA handler in dashboard page switches on `action.cta.action` prefix: `copy:` → clipboard (paperwork magic link), `followup:{id}` or `send_invoice:{id}` → `router.push("/invoices")` (full context for modals lives on invoices page), `/` prefix → `router.push(route)`. No inline modals on dashboard — FollowUpModal and InvoiceSendModal are only rendered on `/invoices`. Refresh button re-fetches `loadData()` which re-fetches actions.
 
 ---
 
