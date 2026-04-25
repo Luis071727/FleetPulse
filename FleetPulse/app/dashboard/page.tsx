@@ -3,10 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { AlertTriangle, CheckCircle, ClipboardCopy, FileText, Mail, RefreshCw, Send } from "lucide-react";
+import { useRouter } from "next/navigation";
 
-import FollowUpModal from "@/components/FollowUpModal";
-import type { InvoiceSendModalData } from "@/components/InvoiceSendModal";
-import InvoiceSendModal from "@/components/InvoiceSendModal";
 import LoadCard from "@/components/LoadCard";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import type { CarrierRow, InvoiceRow, LoadRow } from "@/lib/types";
@@ -53,6 +51,7 @@ const TYPE_ICON_MAP: Record<string, React.ElementType> = {
 };
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [supabase] = useState(() =>
     typeof window === "undefined" ? null : createBrowserSupabaseClient(),
   );
@@ -65,14 +64,9 @@ export default function DashboardPage() {
   // Today's actions
   const [actions, setActions] = useState<TodayAction[]>([]);
   const [actionsLoading, setActionsLoading] = useState(true);
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
 
-  // CTA state
+  // CTA state (clipboard only — invoice actions navigate to /invoices)
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [sendingId, setSendingId] = useState<string | null>(null);
-  const [sentIds, setSentIds] = useState<Set<string>>(new Set());
-  const [followupState, setFollowupState] = useState<{ invoiceId: string; invoiceNumber: string } | null>(null);
-  const [sendModalInvoice, setSendModalInvoice] = useState<InvoiceSendModalData | null>(null);
 
   const fetchActions = useCallback(async (token: string) => {
     setActionsLoading(true);
@@ -141,7 +135,6 @@ export default function DashboardPage() {
     setInvoices((invoicesRes.data || []) as InvoiceRow[]);
 
     const token = sessionRes.data.session?.access_token ?? null;
-    setSessionToken(token);
     if (token) {
       void fetchActions(token);
     } else {
@@ -159,6 +152,7 @@ export default function DashboardPage() {
   async function handleCta(action: TodayAction) {
     const { action: ctaAction } = action.cta;
 
+    // clipboard — paperwork magic link
     if (ctaAction.startsWith("copy:")) {
       const link = ctaAction.slice(5);
       await navigator.clipboard.writeText(link);
@@ -167,48 +161,17 @@ export default function DashboardPage() {
       return;
     }
 
-    if (ctaAction === "/compliance") {
-      window.location.href = "/compliance";
+    // all route-based CTAs: /compliance, send_invoice:, followup: → navigate to the page
+    // where the user can take action with full context
+    if (ctaAction.startsWith("followup:") || ctaAction.startsWith("send_invoice:")) {
+      router.push("/invoices");
       return;
     }
 
-    if (ctaAction.startsWith("followup:")) {
-      const invId = ctaAction.slice(9);
-      const inv = invoices.find((i) => i.id === invId);
-      setFollowupState({
-        invoiceId: invId,
-        invoiceNumber: inv?.invoice_number ?? invId.slice(0, 8).toUpperCase(),
-      });
-      return;
+    // any other plain route (e.g. /compliance)
+    if (ctaAction.startsWith("/")) {
+      router.push(ctaAction);
     }
-
-    if (ctaAction.startsWith("send_invoice:")) {
-      const invId = ctaAction.slice(13);
-      const inv = invoices.find((i) => i.id === invId);
-      if (inv) {
-        setSendModalInvoice(inv as InvoiceSendModalData);
-      } else {
-        await sendInvoiceDirect(invId, action.id);
-      }
-      return;
-    }
-  }
-
-  async function sendInvoiceDirect(invoiceId: string, actionId: string) {
-    if (!sessionToken) return;
-    setSendingId(actionId);
-    try {
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
-      const res = await fetch(`${apiBase}/invoices/${invoiceId}/send`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${sessionToken}` },
-      });
-      if (res.ok) {
-        setSentIds((prev) => new Set(prev).add(actionId));
-        setActions((prev) => prev.filter((a) => a.id !== actionId));
-      }
-    } catch { /* silently ignore */ }
-    finally { setSendingId(null); }
   }
 
   const paidInvoices = invoices.filter((i) => i.status === "paid");
@@ -216,8 +179,6 @@ export default function DashboardPage() {
   const outstanding = invoices.filter((i) => i.status !== "paid").reduce((s, i) => s + (i.amount ?? 0), 0);
   const inTransit = loads.filter((l) => l.status === "in_transit").length;
   const activeLoads = loads.filter((l) => ["logged", "in_transit", "pending"].includes(l.status));
-
-  const carrierName = carrier?.company_name ?? carrier?.name ?? "Your company";
 
   if (loading) return <p className="text-sm text-brand-slate-light">Loading dashboard...</p>;
   if (error) return <p className="text-sm text-brand-danger">{error}</p>;
@@ -282,8 +243,6 @@ export default function DashboardPage() {
               const btnClass = PRIORITY_BTN[action.priority] ?? PRIORITY_BTN.low;
               const Icon = TYPE_ICON_MAP[action.type] ?? FileText;
               const isCopied = copiedId === action.id;
-              const isSending = sendingId === action.id;
-              const isSent = sentIds.has(action.id);
 
               return (
                 <div key={action.id} className={`card p-4 border-l-2 ${borderClass}`}>
@@ -299,16 +258,11 @@ export default function DashboardPage() {
                       <p className="text-xs text-brand-slate-light mt-0.5 truncate">{action.description}</p>
                     </div>
                     <button
-                      disabled={isSent || isSending}
                       onClick={() => void handleCta(action)}
-                      className={`shrink-0 flex items-center gap-1.5 rounded-md text-xs px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${btnClass}`}
+                      className={`shrink-0 flex items-center gap-1.5 rounded-md text-xs px-3 py-1.5 transition-colors ${btnClass}`}
                     >
                       {isCopied ? (
                         <><CheckCircle className="h-3.5 w-3.5" />Copied!</>
-                      ) : isSent ? (
-                        <><CheckCircle className="h-3.5 w-3.5" />Done</>
-                      ) : isSending ? (
-                        <><Send className="h-3.5 w-3.5 animate-pulse" />Sending…</>
                       ) : (
                         <>
                           {action.type === "paperwork_pending" && <ClipboardCopy className="h-3.5 w-3.5" />}
@@ -345,31 +299,6 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* Follow-up modal */}
-      {followupState && (
-        <FollowUpModal
-          invoiceId={followupState.invoiceId}
-          invoiceNumber={followupState.invoiceNumber}
-          onClose={() => setFollowupState(null)}
-          onSent={() => {
-            setActions((prev) => prev.filter((a) => a.entity_id !== followupState.invoiceId));
-            setFollowupState(null);
-          }}
-        />
-      )}
-
-      {/* Send invoice modal */}
-      {sendModalInvoice && (
-        <InvoiceSendModal
-          invoice={sendModalInvoice}
-          carrierName={carrierName}
-          onClose={() => setSendModalInvoice(null)}
-          onSent={() => {
-            setActions((prev) => prev.filter((a) => a.entity_id !== sendModalInvoice.id));
-            setSendModalInvoice(null);
-          }}
-        />
-      )}
     </div>
   );
 }
