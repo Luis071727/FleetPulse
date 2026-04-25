@@ -550,3 +550,21 @@ export async function deleteCarrierDoc(carrierId: string, docId: string) {
     method: "DELETE",
   });
 }
+
+// ── Today's Actions ───────────────────────────────────────────────────────────
+
+export type TodayAction = {
+  id: string;
+  type: "invoice_followup" | "compliance_expiring" | "paperwork_pending" | "invoice_ready";
+  title: string;
+  description: string;
+  priority: "high" | "medium" | "low";
+  due_in_days: number | null;
+  entity_id: string;
+  entity_type: string;
+  cta: { label: string; action: string };
+};
+
+export async function getTodayActions() {
+  return apiFetch<TodayAction[]>("/actions/today");
+}

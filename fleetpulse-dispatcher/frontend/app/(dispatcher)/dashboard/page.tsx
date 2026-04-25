@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { listCarriers, listLoads, listInvoices } from "../../../services/api";
+import { getTodayActions, listCarriers, listLoads, listInvoices } from "../../../services/api";
+import type { TodayAction } from "../../../services/api";
+import TodayWorkPanel from "../../../components/TodayWorkPanel";
 
 type R = Record<string, unknown>;
 
@@ -14,6 +16,17 @@ export default function DashboardPage() {
   const [totalCarriers, setTotalCarriers] = useState(0);
   const [totalOutstanding, setTotalOutstanding] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [actions, setActions] = useState<TodayAction[]>([]);
+  const [actionsLoading, setActionsLoading] = useState(true);
+
+  const fetchActions = useCallback(async () => {
+    setActionsLoading(true);
+    try {
+      const res = await getTodayActions();
+      setActions((res.data as TodayAction[]) || []);
+    } catch { /* network error */ }
+    finally { setActionsLoading(false); }
+  }, []);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -32,7 +45,10 @@ export default function DashboardPage() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    void fetchActions();
+    void fetchAll();
+  }, [fetchActions, fetchAll]);
 
   const formatDate = (value: unknown) => {
     if (typeof value !== "string" || !value) return "—";
@@ -68,6 +84,13 @@ export default function DashboardPage() {
   return (
     <div style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
       <h1 style={{ fontSize: 22, margin: "0 0 20px", fontWeight: 600 }}>Dashboard</h1>
+
+      {/* Today's Work — shown above KPIs */}
+      <TodayWorkPanel
+        actions={actions}
+        loading={actionsLoading}
+        onRefresh={fetchActions}
+      />
 
       {/* KPI Strip */}
       <div className="fp-kpi-strip" style={{ marginBottom: 20 }}>
