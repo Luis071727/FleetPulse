@@ -385,12 +385,43 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 ---
 
+### TODAY'S WORK DASHBOARD (Actions Engine)
+
+| Layer | File | Notes |
+|-------|------|-------|
+| Backend module | `backend/app/actions/` | `__init__.py` + `service.py` + `routes.py` |
+| Backend service | `backend/app/actions/service.py` | `get_todays_actions(user)` — dispatcher path + carrier path; returns up to 10 actions sorted by priority then due_in_days |
+| Backend route | `backend/app/actions/routes.py` | `GET /api/v1/actions/today` — `require_authenticated`; returns `{ data: Action[], total: N }` |
+| Router registration | `backend/app/main.py` | `actions_router` included first in api_v1 |
+| API call (dispatcher) | `services/api.ts` | `getTodayActions()` → `GET /actions/today`; exports `TodayAction` type |
+| Dispatcher component | `fleetpulse-dispatcher/frontend/components/TodayWorkPanel.tsx` | Renders prioritized action cards with colored borders; CTA routes via `router.push`; accepts `actions`, `loading`, `onRefresh` props |
+
+**Action types:** `invoice_followup` | `invoice_ready` | `paperwork_pending` | `compliance_expiring`
+
+**Dispatcher logic:**
+- `invoice_followup`: invoices with status sent/overdue AND days_outstanding > 3; priority: ≥30d=high, ≥14d=medium, else low
+- `invoice_ready`: pending invoices linked to delivered loads
+- `paperwork_pending`: delivered loads where invoice exists but no POD document in invoice_documents
+- `compliance_expiring`: compliance_documents with expires_at ≤ today+30d across all org's carriers; priority: expired/\<7d=high, ≤30d=medium
+
+**Carrier logic:**
+- `paperwork_pending`: invoice_document_requests still pending → `cta_action: "copy:{magic_link}"`
+- `compliance_expiring`: carrier's own compliance_documents expiring
+- `invoice_ready`: pending invoices with delivered loads → `cta_action: "send_invoice:{id}"`
+- `invoice_followup`: sent/overdue invoices → `cta_action: "followup:{id}"`
+
+**CTA action format (carrier):** `copy:{url}` | `send_invoice:{id}` | `followup:{id}` | `/compliance`
+**CTA action format (dispatcher):** route strings like `/invoices?invoiceId={id}` navigated via `router.push`
+
+---
+
 ### DASHBOARD — Dispatcher
 
 | Layer | File | Notes |
 |-------|------|-------|
-| Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/dashboard/page.tsx` | Aggregates loads, invoices, carriers |
-| Data sources | `listLoads()`, `listInvoices()`, `listCarriers()` from `services/api.ts` | |
+| Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/dashboard/page.tsx` | Aggregates loads, invoices, carriers; **Today's Work panel above KPIs** |
+| Data sources | `getTodayActions()`, `listLoads()`, `listInvoices()`, `listCarriers()` from `services/api.ts` | |
+| Today's Work | `components/TodayWorkPanel.tsx` | Placed above KPI strip; refreshable independently |
 
 ---
 
@@ -398,7 +429,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 
 | Layer | File | Notes |
 |-------|------|-------|
-| Page | `FleetPulse/app/dashboard/page.tsx` | Carrier's dashboard — fetches loads + invoices + compliance docs + paperwork in parallel; KPI strip (Total Earned, Outstanding, In Transit); **3-type Pending Actions**; Active Loads section |
+| Page | `FleetPulse/app/dashboard/page.tsx` | Carrier's dashboard — fetches loads + invoices; **Today's Work replaces Pending Actions**; fetches actions from `GET /api/v1/actions/today` with Supabase bearer; KPI strip; Active Loads section |
 | Navigation | `FleetPulse/components/NavBar.tsx` | Nav items: Home / Loads / Invoices / Docs (Receipt icon); Lucide icons |
 | Invoices page | `FleetPulse/app/invoices/page.tsx` | Carrier's invoice list; select joins `loads(load_number, origin, destination)`; row shows lane (origin → destination) as primary identifier + `Load #number`; expanded detail has Lane row; Outstanding/Earned/Total KPIs; status badges; links to Loads for paperwork |
 | Loads list | `FleetPulse/app/loads/page.tsx` | Split into Active (logged/in_transit) and History (delivered/cancelled); fetches invoices in parallel, builds `Map<load_id, invoice_number>`; shows invoice # (amber) next to load # on each card; status pills; rate display; links to load detail |
@@ -413,10 +444,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 **Storage bucket:** `load-documents` (existing) — carrier direct uploads go to `{userId}/{loadId}/{docType}_{ts}.ext`.
 **Nav items:** Home (`/dashboard`) · Loads (`/loads`) · Invoices (`/invoices`) · Docs (`/compliance`)
 
-**Pending Actions — 3 types (amber/orange/blue left border per type):**
-1. **Pending paperwork** (amber) — `GET /api/v1/paperwork/carrier/pending` with carrier Bearer token; shows lane, doc types, expiry; "Copy Link" copies magic_link to clipboard
-2. **Compliance expired/expiring** — Supabase `compliance_documents` where `expires_at <= today+30d` (no lower bound — includes already-expired); expired = red border + "Expired Xd ago", expiring = orange border + "Xd left"; "Renew" links to `/compliance`
-3. **Invoices ready to send** (blue) — Supabase `invoices` with `status='pending'` + `loads(status, origin, destination, broker_name, customer_ap_email)` join; filtered client-side for `loads.status === 'delivered'`; "Send Invoice" → `POST /api/v1/invoices/{id}/send` → marks as sent → opens `mailto:` pre-filled with invoice details
+**Today's Work (replaces old 3-type Pending Actions):** Single `GET /api/v1/actions/today` call with Supabase bearer token. Returns unified `TodayAction[]` from backend actions service. CTA handler in dashboard page switches on `action.cta.action` prefix: `copy:` → clipboard, `/compliance` → navigate, `followup:{id}` → open FollowUpModal, `send_invoice:{id}` → open InvoiceSendModal (or direct API call if invoice not in local state). Refresh button re-fetches `loadData()` which re-fetches actions.
 
 ---
 

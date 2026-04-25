@@ -1,4 +1,4 @@
-# Active Work — Last updated: 2026-04-22
+# Active Work — Last updated: 2026-04-25
 
 ## In Progress
 _none_
@@ -7,6 +7,7 @@ _none_
 _none_
 
 ## Recently Completed
+- `todays-work-dashboard` — 2026-04-25 — Unified "Today's Work" dashboard for both apps. New backend module `actions/` (`service.py` + `routes.py`); `GET /api/v1/actions/today` (`require_authenticated`); dispatcher path generates invoice_followup + invoice_ready + paperwork_pending + compliance_expiring actions from org data; carrier path generates same 4 types from carrier-scoped data. Sorted by priority then due_in_days, limited to 10. Frontend (dispatcher): `TodayWorkPanel.tsx` component, placed above KPIs on dashboard, CTAs navigate via `router.push`. Frontend (carrier portal): "Pending Actions" section replaced with unified "Today's Work" section, CTAs dispatched inline via cta.action prefix (copy:/followup:/send_invoice:/route), FollowUpModal + InvoiceSendModal wired up. `services/api.ts` exports `TodayAction` type + `getTodayActions()`.
 - `carrier-compliance-lifecycle` — 2026-04-22 — Unified document compliance + pending-actions lifecycle. Backend: `evaluate_document_status()` + `sync_pending_actions()` + `renew_document()` in `carrier_compliance/service.py`; sync hooked into every mutation (upload_file, upload_file_direct, update_document, delete_document, renew_document). New routes: `POST /carrier-compliance/carriers/{id}/renew` (authenticated; dispatcher or owning carrier), `GET /carriers/{id}/pending-actions`, `GET /carrier/pending-actions`. Migration `20260422_compliance_lifecycle.sql` adds `superseded_at`+`is_active` to compliance_documents and creates `compliance_pending_actions` derived-state table. Carrier portal: new `RenewDocumentModal` (required issue_date + expires_at + file); `ComplianceDocRow` replaces raw upload with a single Renew button; compliance + dashboard queries filter `is_active` so superseded docs disappear immediately.
 - `carrier-portal-invoice-feature` — 2026-04-20 — Self-managed carriers now get the dispatcher's rich Send Invoice flow (auto-generated branded PDF, editable email draft, Gmail compose, document attachments list) via new `InvoiceSendModal`, plus AI-drafted follow-up emails via new `FollowUpModal`. Backend `POST /ai/invoice/followup` relaxed from `require_dispatcher` to `require_authenticated` with carrier_id filter; tolerates carrier-created invoices (organization_id=NULL)
 - `fix-carrier-portal-json` — 2026-04-20 — Added .limit(1) before .maybeSingle() on all carrier-by-user_id and invoice-by-load_id+carrier_id queries in carrier portal pages (dashboard, loads, load detail, invoices, compliance) to prevent PostgREST "JSON object requested, multiple (or no) rows returned" error when multiple rows match

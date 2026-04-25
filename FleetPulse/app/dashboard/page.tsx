@@ -1,45 +1,56 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { AlertTriangle, CheckCircle, ClipboardCopy, FileText, Mail, RefreshCw, Send } from "lucide-react";
-import Link from "next/link";
 
+import FollowUpModal from "@/components/FollowUpModal";
+import type { InvoiceSendModalData } from "@/components/InvoiceSendModal";
+import InvoiceSendModal from "@/components/InvoiceSendModal";
 import LoadCard from "@/components/LoadCard";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
-import type { CarrierRow, ComplianceDocumentRow, InvoiceRow, LoadRow } from "@/lib/types";
+import type { CarrierRow, InvoiceRow, LoadRow } from "@/lib/types";
 
-type PendingPaperwork = {
-  request_id: string;
-  invoice_id: string;
-  invoice_number: string | null;
-  load_id: string | null;
-  load_number: string | null;
-  origin: string;
-  destination: string;
-  doc_types: string[];
-  magic_link: string;
-  expires_at: string | null;
-};
-
-type InvoiceWithLoad = InvoiceRow & {
-  loads?: {
-    status: string;
-    origin: string;
-    destination: string;
-    broker_name: string | null;
-    customer_ap_email: string | null;
-  } | null;
+type TodayAction = {
+  id: string;
+  type: "invoice_followup" | "compliance_expiring" | "paperwork_pending" | "invoice_ready";
+  title: string;
+  description: string;
+  priority: "high" | "medium" | "low";
+  due_in_days: number | null;
+  entity_id: string;
+  entity_type: string;
+  cta: { label: string; action: string };
 };
 
 function fmtCurrency(n: number) {
   return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function daysUntil(dateStr: string): number {
-  const diff = new Date(dateStr).getTime() - Date.now();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
-}
+const PRIORITY_BORDER: Record<string, string> = {
+  high: "border-red-500",
+  medium: "border-amber-500",
+  low: "border-slate-500",
+};
+
+const PRIORITY_ICON_COLOR: Record<string, string> = {
+  high: "text-red-400",
+  medium: "text-amber-400",
+  low: "text-slate-400",
+};
+
+const PRIORITY_BTN: Record<string, string> = {
+  high: "bg-red-500/10 hover:bg-red-500/20 text-red-400",
+  medium: "bg-amber-500/10 hover:bg-amber-500/20 text-amber-400",
+  low: "bg-slate-500/10 hover:bg-slate-500/20 text-slate-400",
+};
+
+const TYPE_ICON_MAP: Record<string, React.ElementType> = {
+  invoice_followup: Mail,
+  compliance_expiring: AlertTriangle,
+  paperwork_pending: FileText,
+  invoice_ready: Send,
+};
 
 export default function DashboardPage() {
   const [supabase] = useState(() =>
@@ -51,22 +62,37 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Pending actions data
-  const [pendingPaperwork, setPendingPaperwork] = useState<PendingPaperwork[]>([]);
-  const [expiringDocs, setExpiringDocs] = useState<ComplianceDocumentRow[]>([]);
-  const [invoicesToSend, setInvoicesToSend] = useState<InvoiceWithLoad[]>([]);
+  // Today's actions
+  const [actions, setActions] = useState<TodayAction[]>([]);
+  const [actionsLoading, setActionsLoading] = useState(true);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
 
-  // Per-action state
+  // CTA state
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [sendingInvoice, setSendingInvoice] = useState<string | null>(null);
-  const [sentInvoices, setSentInvoices] = useState<Set<string>>(new Set());
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [sentIds, setSentIds] = useState<Set<string>>(new Set());
+  const [followupState, setFollowupState] = useState<{ invoiceId: string; invoiceNumber: string } | null>(null);
+  const [sendModalInvoice, setSendModalInvoice] = useState<InvoiceSendModalData | null>(null);
 
-  useEffect(() => {
-    void loadData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
+  const fetchActions = useCallback(async (token: string) => {
+    setActionsLoading(true);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
+      const res = await fetch(`${apiBase}/actions/today`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { data?: TodayAction[] };
+        setActions(json.data ?? []);
+      }
+    } catch {
+      // non-critical
+    } finally {
+      setActionsLoading(false);
+    }
+  }, []);
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     if (!supabase) return;
 
     setLoading(true);
@@ -96,10 +122,7 @@ export default function DashboardPage() {
 
     setCarrier(carrierData);
 
-    // Fetch all data in parallel
-    const thirtyDaysOut = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-
-    const [loadsRes, invoicesRes, complianceRes, sessionRes] = await Promise.all([
+    const [loadsRes, invoicesRes, sessionRes] = await Promise.all([
       supabase
         .from("loads")
         .select("*")
@@ -108,105 +131,93 @@ export default function DashboardPage() {
         .order("pickup_date", { ascending: true }),
       supabase
         .from("invoices")
-        .select("*, loads(status, origin, destination, broker_name, customer_ap_email)")
-        .eq("carrier_id", carrierData.id)
-        .is("deleted_at", null),
-      supabase
-        .from("compliance_documents")
         .select("*")
         .eq("carrier_id", carrierData.id)
-        .or("is_active.is.null,is_active.eq.true")  // exclude superseded renewals
-        .not("expires_at", "is", null)
-        .lte("expires_at", thirtyDaysOut)   // expired OR expiring within 30 days
-        .order("expires_at", { ascending: true }),
+        .is("deleted_at", null),
       supabase.auth.getSession(),
     ]);
 
-    const loadRows = (loadsRes.data || []) as LoadRow[];
-    setLoads(loadRows);
+    setLoads((loadsRes.data || []) as LoadRow[]);
+    setInvoices((invoicesRes.data || []) as InvoiceRow[]);
 
-    const allInvoices = (invoicesRes.data || []) as InvoiceWithLoad[];
-    setInvoices(allInvoices.map((i) => i as InvoiceRow));
-
-    // Expiring compliance docs
-    setExpiringDocs((complianceRes.data || []) as ComplianceDocumentRow[]);
-
-    // Invoices ready to send: pending invoices where linked load is delivered
-    const toSend = allInvoices.filter(
-      (inv) => inv.status === "pending" && inv.loads?.status === "delivered",
-    );
-    setInvoicesToSend(toSend);
-
-    // Fetch pending paperwork from backend
-    const session = sessionRes.data.session;
-    if (session?.access_token) {
-      try {
-        const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
-        const res = await fetch(`${apiBase}/paperwork/carrier/pending`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (res.ok) {
-          const json = (await res.json()) as { data?: PendingPaperwork[] };
-          setPendingPaperwork(json.data ?? []);
-        }
-      } catch {
-        // non-critical — silently ignore
-      }
+    const token = sessionRes.data.session?.access_token ?? null;
+    setSessionToken(token);
+    if (token) {
+      void fetchActions(token);
+    } else {
+      setActionsLoading(false);
     }
 
     setLoading(false);
-  }
+  }, [supabase, fetchActions]);
 
-  async function copyMagicLink(link: string, id: string) {
-    await navigator.clipboard.writeText(link);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2500);
-  }
+  useEffect(() => {
+    void loadData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
 
-  async function sendInvoice(inv: InvoiceWithLoad) {
-    if (!supabase) return;
-    setSendingInvoice(inv.id);
+  async function handleCta(action: TodayAction) {
+    const { action: ctaAction } = action.cta;
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
-      const res = await fetch(`${apiBase}/invoices/${inv.id}/send`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+    if (ctaAction.startsWith("copy:")) {
+      const link = ctaAction.slice(5);
+      await navigator.clipboard.writeText(link);
+      setCopiedId(action.id);
+      setTimeout(() => setCopiedId(null), 2500);
+      return;
+    }
+
+    if (ctaAction === "/compliance") {
+      window.location.href = "/compliance";
+      return;
+    }
+
+    if (ctaAction.startsWith("followup:")) {
+      const invId = ctaAction.slice(9);
+      const inv = invoices.find((i) => i.id === invId);
+      setFollowupState({
+        invoiceId: invId,
+        invoiceNumber: inv?.invoice_number ?? invId.slice(0, 8).toUpperCase(),
       });
+      return;
+    }
 
-      if (res.ok) {
-        const json = (await res.json()) as { data?: { sent_to?: string } };
-        const apEmail = json.data?.sent_to || inv.loads?.customer_ap_email || "";
-        setSentInvoices((prev) => new Set(prev).add(inv.id));
-        setInvoicesToSend((prev) => prev.filter((i) => i.id !== inv.id));
-
-        // Open mailto if we have an email
-        if (apEmail) {
-          const invNum = inv.invoice_number ?? inv.id.slice(0, 8);
-          const lane = inv.loads ? `${inv.loads.origin} → ${inv.loads.destination}` : "";
-          const subject = encodeURIComponent(`Invoice ${invNum}${lane ? ` — ${lane}` : ""}`);
-          const body = encodeURIComponent(
-            `Hello,\n\nPlease find attached invoice ${invNum}${lane ? ` for the load from ${inv.loads?.origin} to ${inv.loads?.destination}` : ""}.\n\nAmount due: ${fmtCurrency(inv.amount ?? 0)}\n\nPlease remit payment at your earliest convenience.\n\nThank you.`,
-          );
-          window.open(`mailto:${apEmail}?subject=${subject}&body=${body}`, "_blank");
-        }
+    if (ctaAction.startsWith("send_invoice:")) {
+      const invId = ctaAction.slice(13);
+      const inv = invoices.find((i) => i.id === invId);
+      if (inv) {
+        setSendModalInvoice(inv as InvoiceSendModalData);
+      } else {
+        await sendInvoiceDirect(invId, action.id);
       }
-    } catch {
-      // silently ignore
-    } finally {
-      setSendingInvoice(null);
+      return;
     }
   }
 
-  const totalPendingActions = pendingPaperwork.length + expiringDocs.length + invoicesToSend.length;
+  async function sendInvoiceDirect(invoiceId: string, actionId: string) {
+    if (!sessionToken) return;
+    setSendingId(actionId);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
+      const res = await fetch(`${apiBase}/invoices/${invoiceId}/send`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${sessionToken}` },
+      });
+      if (res.ok) {
+        setSentIds((prev) => new Set(prev).add(actionId));
+        setActions((prev) => prev.filter((a) => a.id !== actionId));
+      }
+    } catch { /* silently ignore */ }
+    finally { setSendingId(null); }
+  }
 
   const paidInvoices = invoices.filter((i) => i.status === "paid");
   const totalEarned = paidInvoices.reduce((s, i) => s + (i.amount ?? 0), 0);
   const outstanding = invoices.filter((i) => i.status !== "paid").reduce((s, i) => s + (i.amount ?? 0), 0);
   const inTransit = loads.filter((l) => l.status === "in_transit").length;
-
   const activeLoads = loads.filter((l) => ["logged", "in_transit", "pending"].includes(l.status));
+
+  const carrierName = carrier?.company_name ?? carrier?.name ?? "Your company";
 
   if (loading) return <p className="text-sm text-brand-slate-light">Loading dashboard...</p>;
   if (error) return <p className="text-sm text-brand-danger">{error}</p>;
@@ -238,11 +249,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Pending Actions */}
+      {/* Today's Work */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="section-title">Pending Actions</h2>
+            <h2 className="section-title">Today&apos;s Work</h2>
             <p className="mt-1 text-sm text-brand-slate-light">
               Items that need your attention.
             </p>
@@ -256,141 +267,52 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {totalPendingActions === 0 ? (
+        {actionsLoading ? (
+          <div className="card p-5 text-sm text-brand-slate-light">Loading actions…</div>
+        ) : actions.length === 0 ? (
           <div className="card p-5 flex items-center gap-3 text-sm text-brand-slate-light">
             <CheckCircle className="h-4 w-4 text-green-400 shrink-0" />
-            Nothing urgent right now — you&apos;re all caught up.
+            You&apos;re all caught up — nothing urgent right now.
           </div>
         ) : (
           <div className="space-y-3">
+            {actions.map((action) => {
+              const borderClass = PRIORITY_BORDER[action.priority] ?? "border-slate-500";
+              const iconColorClass = PRIORITY_ICON_COLOR[action.priority] ?? "text-slate-400";
+              const btnClass = PRIORITY_BTN[action.priority] ?? PRIORITY_BTN.low;
+              const Icon = TYPE_ICON_MAP[action.type] ?? FileText;
+              const isCopied = copiedId === action.id;
+              const isSending = sendingId === action.id;
+              const isSent = sentIds.has(action.id);
 
-            {/* 1. Pending paperwork requests */}
-            {pendingPaperwork.map((req) => (
-              <div key={req.request_id} className="card p-4 border-l-2 border-amber-500">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-amber-400 shrink-0" />
-                      <span className="text-xs font-medium text-amber-400 uppercase tracking-wide">Paperwork Needed</span>
-                    </div>
-                    <p className="mt-1 text-sm font-medium text-brand-slate truncate">
-                      {req.origin} → {req.destination}
-                    </p>
-                    <p className="text-xs text-brand-slate-light mt-0.5">
-                      {req.load_number ? `Load #${req.load_number}` : ""}
-                      {req.invoice_number ? ` · INV-${req.invoice_number.slice(0, 8).toUpperCase()}` : ""}
-                    </p>
-                    {req.doc_types.length > 0 && (
-                      <p className="text-xs text-brand-slate-light mt-1">
-                        Docs: {req.doc_types.join(", ")}
-                      </p>
-                    )}
-                    {req.expires_at && (
-                      <p className="text-xs text-brand-slate-light mt-0.5">
-                        Expires {new Date(req.expires_at).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => void copyMagicLink(req.magic_link, req.request_id)}
-                    className="shrink-0 flex items-center gap-1.5 rounded-md bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs px-3 py-1.5 transition-colors"
-                  >
-                    {copiedId === req.request_id ? (
-                      <>
-                        <CheckCircle className="h-3.5 w-3.5" />
-                        Copied!
-                      </>
-                    ) : (
-                      <>
-                        <ClipboardCopy className="h-3.5 w-3.5" />
-                        Copy Link
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            {/* 2. Expiring / expired compliance docs */}
-            {expiringDocs.map((doc) => {
-              const days = daysUntil(doc.expires_at!);
-              const isExpired = days < 0;
               return (
-                <div key={doc.id} className={`card p-4 border-l-2 ${isExpired ? "border-red-500" : "border-orange-500"}`}>
+                <div key={action.id} className={`card p-4 border-l-2 ${borderClass}`}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <AlertTriangle className={`h-4 w-4 shrink-0 ${isExpired ? "text-red-400" : "text-orange-400"}`} />
-                        <span className={`text-xs font-medium uppercase tracking-wide ${isExpired ? "text-red-400" : "text-orange-400"}`}>
-                          {isExpired ? "Compliance Expired" : "Compliance Expiring"}
+                        <Icon className={`h-4 w-4 shrink-0 ${iconColorClass}`} />
+                        <span className={`text-xs font-medium uppercase tracking-wide ${iconColorClass}`}>
+                          {action.type.replace(/_/g, " ")}
                         </span>
                       </div>
-                      <p className="mt-1 text-sm font-medium text-brand-slate">
-                        {doc.label || doc.doc_type}
-                      </p>
-                      <p className="text-xs text-brand-slate-light mt-0.5">
-                        {isExpired
-                          ? `Expired ${new Date(doc.expires_at!).toLocaleDateString()} · ${Math.abs(days)}d ago`
-                          : `Expires ${new Date(doc.expires_at!).toLocaleDateString()} · ${days === 0 ? "Today" : `${days}d left`}`}
-                      </p>
-                    </div>
-                    <Link
-                      href="/compliance"
-                      className={`shrink-0 flex items-center gap-1.5 rounded-md text-xs px-3 py-1.5 transition-colors ${
-                        isExpired
-                          ? "bg-red-500/10 hover:bg-red-500/20 text-red-400"
-                          : "bg-orange-500/10 hover:bg-orange-500/20 text-orange-400"
-                      }`}
-                    >
-                      Renew
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* 3. Invoices ready to send */}
-            {invoicesToSend.map((inv) => {
-              const isSent = sentInvoices.has(inv.id);
-              const isSending = sendingInvoice === inv.id;
-              const lane = inv.loads ? `${inv.loads.origin} → ${inv.loads.destination}` : null;
-              const broker = inv.loads?.broker_name ?? null;
-              const apEmail = inv.loads?.customer_ap_email ?? null;
-
-              return (
-                <div key={inv.id} className="card p-4 border-l-2 border-blue-500">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-blue-400 shrink-0" />
-                        <span className="text-xs font-medium text-blue-400 uppercase tracking-wide">Invoice Ready to Send</span>
-                      </div>
-                      {lane && (
-                        <p className="mt-1 text-sm font-medium text-brand-slate truncate">{lane}</p>
-                      )}
-                      <p className="text-xs text-brand-slate-light mt-0.5">
-                        {inv.invoice_number ? `INV-${inv.invoice_number.slice(0, 8).toUpperCase()}` : `INV-${inv.id.slice(0, 8).toUpperCase()}`}
-                        {broker ? ` · ${broker}` : ""}
-                      </p>
-                      <p className="text-xs text-brand-slate-light mt-0.5">
-                        {fmtCurrency(inv.amount ?? 0)}
-                        {apEmail ? ` · ${apEmail}` : ""}
-                      </p>
+                      <p className="mt-1 text-sm font-medium text-brand-slate truncate">{action.title}</p>
+                      <p className="text-xs text-brand-slate-light mt-0.5 truncate">{action.description}</p>
                     </div>
                     <button
                       disabled={isSent || isSending}
-                      onClick={() => void sendInvoice(inv)}
-                      className="shrink-0 flex items-center gap-1.5 rounded-md bg-blue-500/10 hover:bg-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed text-blue-400 text-xs px-3 py-1.5 transition-colors"
+                      onClick={() => void handleCta(action)}
+                      className={`shrink-0 flex items-center gap-1.5 rounded-md text-xs px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${btnClass}`}
                     >
-                      {isSent ? (
-                        <>
-                          <CheckCircle className="h-3.5 w-3.5" />
-                          Sent
-                        </>
+                      {isCopied ? (
+                        <><CheckCircle className="h-3.5 w-3.5" />Copied!</>
+                      ) : isSent ? (
+                        <><CheckCircle className="h-3.5 w-3.5" />Done</>
+                      ) : isSending ? (
+                        <><Send className="h-3.5 w-3.5 animate-pulse" />Sending…</>
                       ) : (
                         <>
-                          <Send className={`h-3.5 w-3.5 ${isSending ? "animate-pulse" : ""}`} />
-                          {isSending ? "Sending…" : "Send Invoice"}
+                          {action.type === "paperwork_pending" && <ClipboardCopy className="h-3.5 w-3.5" />}
+                          {action.cta.label}
                         </>
                       )}
                     </button>
@@ -398,7 +320,6 @@ export default function DashboardPage() {
                 </div>
               );
             })}
-
           </div>
         )}
       </section>
@@ -423,6 +344,32 @@ export default function DashboardPage() {
           </div>
         )}
       </section>
+
+      {/* Follow-up modal */}
+      {followupState && (
+        <FollowUpModal
+          invoiceId={followupState.invoiceId}
+          invoiceNumber={followupState.invoiceNumber}
+          onClose={() => setFollowupState(null)}
+          onSent={() => {
+            setActions((prev) => prev.filter((a) => a.entity_id !== followupState.invoiceId));
+            setFollowupState(null);
+          }}
+        />
+      )}
+
+      {/* Send invoice modal */}
+      {sendModalInvoice && (
+        <InvoiceSendModal
+          invoice={sendModalInvoice}
+          carrierName={carrierName}
+          onClose={() => setSendModalInvoice(null)}
+          onSent={() => {
+            setActions((prev) => prev.filter((a) => a.entity_id !== sendModalInvoice.id));
+            setSendModalInvoice(null);
+          }}
+        />
+      )}
     </div>
   );
 }
