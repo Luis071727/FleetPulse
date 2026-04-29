@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Loader, Plus, Trash2, CheckCircle, Send, Sparkles } from "lucide-react";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase";
+import { cn } from "@/lib/cn";
 import type { CarrierPortalMode, CarrierRow, InvoiceRow, InvoiceStatus, LoadRow } from "@/lib/types";
 import InvoiceSendModal from "@/components/InvoiceSendModal";
 import FollowUpModal from "@/components/FollowUpModal";
