@@ -7,9 +7,10 @@ import { X } from "./icons";
 type Props = {
   invoiceId: string;
   onSent?: () => void;
+  label?: string;
 };
 
-export default function FollowUpModal({ invoiceId, onSent }: Props) {
+export default function FollowUpModal({ invoiceId, onSent, label }: Props) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [subject, setSubject] = useState("");
@@ -65,7 +66,7 @@ export default function FollowUpModal({ invoiceId, onSent }: Props) {
 
   return (
     <div style={{ display: "inline-block" }}>
-      <button type="button" onClick={handleOpen} style={btnStyle}>Draft Follow-up</button>
+      <button type="button" onClick={handleOpen} style={btnStyle}>{label ?? "Draft Follow-up"}</button>
       {open && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex",
           justifyContent: "center", alignItems: "center", zIndex: 100 }}>

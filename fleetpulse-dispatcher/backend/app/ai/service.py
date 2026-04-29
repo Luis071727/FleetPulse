@@ -244,9 +244,12 @@ class AIService:
                 tokens_used={},
             )
 
+        followups_sent = int(invoice.get("followups_sent", 0) or 0)
+        collection_status = invoice.get("collection_status", "")
         user_msg = (
             f"Invoice {inv_number}, amount ${amount:,.2f}, {days} days outstanding, "
-            f"broker: {broker}, tone: {tone}"
+            f"broker: {broker}, tone: {tone}, followups_sent: {followups_sent}"
+            + (f", collection_status: {collection_status}" if collection_status else "")
         )
         try:
             parsed, tokens = self._call_claude(FOLLOWUP_SYSTEM_PROMPT, user_msg)

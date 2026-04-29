@@ -21,6 +21,7 @@ export default function InvoicePage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [hidePaid, setHidePaid] = useState(true);
   const [draftingAll, setDraftingAll] = useState(false);
+  const [getPaidFaster, setGetPaidFaster] = useState(false);
   const [showAddInvoice, setShowAddInvoice] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [sendingInvoice, setSendingInvoice] = useState<Invoice | null>(null);
@@ -113,6 +114,27 @@ export default function InvoicePage() {
     return days >= 22 && (i.status as string) !== "paid";
   }).length;
 
+  const urgentCount = invoices.filter((i) => (i.collection_status as string) === "urgent").length;
+  const followUpCount = invoices.filter((i) => (i.collection_status as string) === "follow_up").length;
+
+  const priorityRank: Record<string, number> = { high: 0, medium: 1, low: 2 };
+  const displayedInvoices = (() => {
+    let list = hidePaid ? invoices.filter((i) => (i.status as string) !== "paid") : invoices;
+    if (getPaidFaster) {
+      list = list.filter((i) => {
+        const cs = i.collection_status as string;
+        return cs === "follow_up" || cs === "urgent";
+      });
+      list = [...list].sort((a, b) => {
+        const pa = priorityRank[a.priority as string] ?? 2;
+        const pb = priorityRank[b.priority as string] ?? 2;
+        if (pa !== pb) return pa - pb;
+        return Number(b.days_outstanding || 0) - Number(a.days_outstanding || 0);
+      });
+    }
+    return list;
+  })();
+
   return (
     <div style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -133,9 +155,39 @@ export default function InvoicePage() {
         </div>
       </div>
 
-      {overdueCount > 0 && (
+      {/* Summary bar */}
+      <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 13, color: "#94a3b8" }}>
+          <strong style={{ color: "#f59e0b" }}>${totalOutstanding.toLocaleString()}</strong> outstanding
+          {urgentCount > 0 && (
+            <> &nbsp;·&nbsp; <strong style={{ color: "#ef4444" }}>{urgentCount} urgent</strong></>
+          )}
+          {followUpCount > 0 && (
+            <> &nbsp;·&nbsp; <strong style={{ color: "#f59e0b" }}>{followUpCount} follow-up{followUpCount !== 1 ? "s" : ""} needed</strong></>
+          )}
+        </span>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", marginLeft: "auto",
+          fontSize: 13, fontWeight: 600,
+          color: getPaidFaster ? "var(--amber)" : "var(--mist)",
+          border: `1px solid ${getPaidFaster ? "var(--amber)" : "var(--border)"}`,
+          borderRadius: 20, padding: "4px 14px",
+          background: getPaidFaster ? "rgba(251,191,36,0.08)" : "transparent",
+          transition: "all 0.15s",
+        }}>
+          <input type="checkbox" checked={getPaidFaster} onChange={(e) => setGetPaidFaster(e.target.checked)}
+            style={{ accentColor: "var(--amber)", cursor: "pointer" }} />
+          Get Paid Faster Mode
+        </label>
+      </div>
+
+      {overdueCount > 0 && !getPaidFaster && (
         <div style={{ background: "#3b1010", borderRadius: 8, padding: "10px 16px", marginBottom: 14, fontSize: 13, color: "#ef4444", display: "flex", alignItems: "center", gap: 8 }}>
           <AlertTriangle size={16} /> {overdueCount} invoice{overdueCount > 1 ? "s" : ""} overdue (22+ days)
+        </div>
+      )}
+      {getPaidFaster && (
+        <div style={{ background: "rgba(251,191,36,0.08)", borderRadius: 8, padding: "10px 16px", marginBottom: 14, fontSize: 13, color: "var(--amber)", display: "flex", alignItems: "center", gap: 8, border: "1px solid rgba(251,191,36,0.2)" }}>
+          <AlertTriangle size={16} /> Get Paid Faster Mode — showing {displayedInvoices.length} invoice{displayedInvoices.length !== 1 ? "s" : ""} needing follow-up, sorted by urgency
         </div>
       )}
 
@@ -180,9 +232,8 @@ export default function InvoicePage() {
         </a>
         <p style={{ fontSize: 12, color: "#64748b", margin: 0, marginLeft: "auto" }}>
           {loading ? "Loading…" : (() => {
-            const displayed = hidePaid ? invoices.filter((i) => (i.status as string) !== "paid") : invoices;
-            const hidden = invoices.length - displayed.length;
-            return `${displayed.length} invoice${displayed.length !== 1 ? "s" : ""}${hidden > 0 ? ` (${hidden} paid hidden)` : ""}`;
+            const hidden = invoices.length - displayedInvoices.length;
+            return `${displayedInvoices.length} invoice${displayedInvoices.length !== 1 ? "s" : ""}${hidden > 0 ? ` (${hidden} hidden)` : ""}`;
           })()}
         </p>
       </div>
@@ -201,7 +252,7 @@ export default function InvoicePage() {
           </tr>
         </thead>
         <tbody>
-          {(hidePaid ? invoices.filter((i) => (i.status as string) !== "paid") : invoices).map((inv) => (
+          {displayedInvoices.map((inv) => (
             <InvoiceRow
               key={inv.id as string}
               invoice={inv}
@@ -214,9 +265,11 @@ export default function InvoicePage() {
               onSendInvoice={(inv) => setSendingInvoice(inv)}
             />
           ))}
-          {invoices.length === 0 && !loading && (
+          {displayedInvoices.length === 0 && !loading && (
             <tr><td colSpan={7} style={{ ...tdStyle, textAlign: "center", color: "#64748b", padding: 40 }}>
-              No invoices yet. Invoices are created automatically when you log a load.
+              {getPaidFaster
+                ? (invoices.every((i) => (i.status as string) === "paid") ? "You’re fully collected ✓" : "No outstanding payments needing follow-up")
+                : "No invoices yet. Invoices are created automatically when you log a load."}
             </td></tr>
           )}
         </tbody>

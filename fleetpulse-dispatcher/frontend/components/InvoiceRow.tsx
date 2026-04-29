@@ -17,6 +17,13 @@ type Props = {
   onSendInvoice?: (invoice: Record<string, unknown>) => void;
 };
 
+const COLLECTION_BADGE: Record<string, { label: string; color: string }> = {
+  not_sent:  { label: "Not Sent",  color: "var(--mist)" },
+  waiting:   { label: "Waiting",   color: "var(--mist)" },
+  follow_up: { label: "Follow-up", color: "var(--amber)" },
+  urgent:    { label: "Urgent",    color: "var(--red)" },
+};
+
 const DAYS_BADGE_CLASS = (days: number) => {
   if (days > 30)  return "fp-badge fp-badge--overdue";
   if (days >= 22) return "fp-badge fp-badge--idle";
@@ -64,8 +71,10 @@ export default function InvoiceRow({ invoice, carriers, onMarkPaid, onFollowupSe
   const amount        = Number(invoice.amount || 0);
   const days          = Number(invoice.days_outstanding || 0);
   const status        = (invoice.status as string) || "pending";
-  const followupsSent = Number(invoice.followups_sent || 0);
-  const isPaid        = status === "paid";
+  const followupsSent     = Number(invoice.followups_sent || 0);
+  const isPaid            = status === "paid";
+  const collectionStatus  = (invoice.collection_status as string) || "";
+  const recommendedAction = (invoice.recommended_action as string) || "";
   const [editingCarrier, setEditingCarrier] = useState(false);
 
   const handleStatusChange = async (newStatus: string) => {
@@ -135,6 +144,22 @@ export default function InvoiceRow({ invoice, carriers, onMarkPaid, onFollowupSe
           <option value="claim">Claim</option>
           <option value="overdue">Overdue</option>
         </select>
+        {!isPaid && collectionStatus && COLLECTION_BADGE[collectionStatus] && (
+          <div style={{ marginTop: 4 }}>
+            <span style={{
+              fontSize: 10, padding: "1px 6px", borderRadius: 6, fontWeight: 600,
+              textTransform: "uppercase" as const,
+              background: `color-mix(in srgb, ${COLLECTION_BADGE[collectionStatus].color} 15%, transparent)`,
+              color: COLLECTION_BADGE[collectionStatus].color,
+              border: `1px solid color-mix(in srgb, ${COLLECTION_BADGE[collectionStatus].color} 30%, transparent)`,
+            }}>
+              {COLLECTION_BADGE[collectionStatus].label}
+            </span>
+            {recommendedAction && (
+              <div style={{ fontSize: 10, color: "var(--mistLt)", marginTop: 2 }}>{recommendedAction}</div>
+            )}
+          </div>
+        )}
       </td>
 
       <td style={{ ...tdStyle, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
@@ -153,7 +178,11 @@ export default function InvoiceRow({ invoice, carriers, onMarkPaid, onFollowupSe
             <button type="button" onClick={() => onMarkPaid(id)} className="fp-btn fp-btn--sm fp-btn--ghost">
               Mark Paid
             </button>
-            <FollowUpModal invoiceId={id} onSent={onFollowupSent} />
+            <FollowUpModal
+              invoiceId={id}
+              onSent={onFollowupSent}
+              label={collectionStatus === "urgent" ? "Escalate" : collectionStatus === "follow_up" ? "Send Follow-up" : undefined}
+            />
           </>
         )}
         <button
