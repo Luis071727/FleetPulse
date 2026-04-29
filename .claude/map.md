@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-29 (Global component polish: unified CSS design system across both apps)
+Last updated: 2026-04-29 (FollowUpModal styling aligned to design system in both apps)
 
 ---
 
@@ -158,7 +158,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 |-------|------|-------|
 | Page | `fleetpulse-dispatcher/frontend/app/(dispatcher)/invoices/page.tsx` | Lists, filters, actions; **hides paid invoices by default** (`hidePaid` state = true); toggle chip "✓ Hiding paid / ○ Show paid"; "Paid history → Monthly Reports" link |
 | Row component | `components/InvoiceRow.tsx` | Invoice table row with actions |
-| Follow-up modal | `components/FollowUpModal.tsx` | AI-drafted follow-up email (tone escalation) |
+| Follow-up modal | `components/FollowUpModal.tsx` | AI-drafted follow-up email (tone escalation); uses `fp-btn`, `fp-input`, `fp-badge` classes; tone badge maps polite/firm/assertive/final to fp-badge variants |
 | Add modal | `components/AddInvoiceModal.tsx` | Manual invoice creation |
 | **Send modal** | `components/InvoiceSendModal.tsx` | Pre-filled Gmail compose (To/Subject/Body) + client-side PDF download; lists attached docs; calls `sendInvoice()` to mark status; triggered from InvoiceRow and InvoiceDetailModal Details tab |
 | API calls | `services/api.ts:230–280` | `listInvoices`, `createInvoice`, `getInvoice`, `markInvoicePaid`, `updateInvoice`, `deleteInvoice`, `sendInvoice` |
@@ -196,7 +196,7 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 | New Invoice form | inline in `invoices/page.tsx` | Fields: load_id (delivered-loads dropdown), amount*, invoice_number, issued_date, due_date, customer_ap_email, notes; `POST /api/v1/invoices` with Bearer token |
 | Per-invoice actions | inline in `invoices/page.tsx` | Mark Paid → `PATCH /api/v1/invoices/{id}` `{status:"paid"}`; Send Invoice → opens `InvoiceSendModal`; Draft Follow-up (sent/overdue only) → opens `FollowUpModal`; Delete → `DELETE /api/v1/invoices/{id}` |
 | **Send modal** | `FleetPulse/components/InvoiceSendModal.tsx` | Mirrors dispatcher's send flow for self-managed carriers: auto-generated branded PDF (print-to-PDF), editable To/Subject/Body, list of uploaded invoice documents (signed URLs from `/paperwork/invoices/{id}/documents`), Gmail compose on submit, marks invoice `sent` via `POST /invoices/{id}/send` |
-| **Follow-up modal** | `FleetPulse/components/FollowUpModal.tsx` | Calls `POST /ai/invoice/followup` with Supabase bearer; shows tone badge (polite/firm/assertive/final); editable subject+body; Copy to Clipboard + Mark as Sent |
+| **Follow-up modal** | `FleetPulse/components/FollowUpModal.tsx` | Calls `POST /ai/invoice/followup` with Supabase bearer; shows tone badge (polite/firm/assertive/final) using `border/bg-{color}-700/40` pattern; editable subject+body; Copy to Clipboard (`brand-info` button) + Mark as Sent |
 | Backend route | `backend/app/invoices/routes.py` | Auth relaxed to `require_authenticated`; `CreateInvoiceIn.carrier_id` is `str | None = None` — resolved from JWT for carrier callers; PATCH/DELETE filter by carrier_id for carriers |
 | Backend route (AI followup) | `backend/app/ai/routes.py` | Auth relaxed to `require_authenticated`; carriers filtered by `carrier_id`; `_enrich_invoices` called with fallback org_id (tolerates carrier-created invoices with organization_id=NULL) |
 
