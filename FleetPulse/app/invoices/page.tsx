@@ -290,7 +290,7 @@ export default function InvoicesPage() {
                           </p>
                         </div>
                       )}
-                      <div><p className="text-brand-slate-light">Status</p><p className="mt-0.5 font-medium text-brand-slate">{STATUS_LABEL[inv.status] ?? inv.status}</p></div>
+                      <div><p className="text-brand-slate-light">Status</p><p className="mt-0.5 font-medium text-brand-slate capitalize">{inv.status.replace(/_/g, " ")}</p></div>
                       <div><p className="text-brand-slate-light">Amount</p><p className="mt-0.5 font-mono font-semibold text-brand-slate">{fmtCurrency(inv.amount)}</p></div>
                       <div><p className="text-brand-slate-light">Issued</p><p className="mt-0.5 text-brand-slate">{inv.issued_date?.slice(0, 10) ?? "—"}</p></div>
                       <div><p className="text-brand-slate-light">Due</p><p className="mt-0.5 text-brand-slate">{inv.due_date?.slice(0, 10) ?? "—"}</p></div>
