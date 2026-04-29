@@ -5,31 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Loader, Plus } from "lucide-react";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase";
-import type { CarrierPortalMode, CarrierRow, InvoiceRow, LoadRow } from "@/lib/types";
-
-const STATUS_LABEL: Record<string, string> = {
-  logged: "Logged",
-  in_transit: "In Transit",
-  delivered: "Delivered",
-  cancelled: "Cancelled",
-  pending: "Pending",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  logged: "bg-brand-amber-light text-brand-amber border-brand-amber/30",
-  in_transit: "bg-blue-950 text-blue-300 border-blue-800",
-  delivered: "bg-green-950 text-green-400 border-green-800",
-  cancelled: "bg-brand-surface text-brand-slate-light border-brand-border",
-  pending: "bg-brand-surface text-brand-slate-light border-brand-border",
-};
-
-function StatusPill({ status }: { status: string }) {
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[status] ?? "bg-brand-surface text-brand-slate-light border-brand-border"}`}>
-      {STATUS_LABEL[status] ?? status}
-    </span>
-  );
-}
+import type { CarrierPortalMode, CarrierRow, InvoiceRow, LoadRow, LoadStatus } from "@/lib/types";
+import StatusBadge from "@/components/StatusBadge";
 
 function LoadCard({ load, invoiceNumber }: { load: LoadRow; invoiceNumber?: string | null }) {
   return (
@@ -54,7 +31,7 @@ function LoadCard({ load, invoiceNumber }: { load: LoadRow; invoiceNumber?: stri
             ${Number(load.rate ?? load.load_rate).toLocaleString()}
           </span>
         )}
-        <StatusPill status={load.status} />
+        <StatusBadge status={load.status as LoadStatus} />
       </div>
     </Link>
   );
@@ -199,7 +176,7 @@ export default function LoadsPage() {
           <button
             type="button"
             onClick={() => (showForm ? setShowForm(false) : openForm())}
-            className="inline-flex items-center gap-2 rounded-lg border border-amber-700/40 bg-brand-amber px-4 py-2 text-sm font-semibold text-black transition hover:bg-amber-400"
+            className="inline-flex items-center gap-2 rounded-lg border border-brand-warning/40 bg-brand-amber px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"
           >
             {showForm ? <ChevronUp size={15} /> : <Plus size={15} />}
             {showForm ? "Cancel" : "Log Load"}
@@ -252,7 +229,7 @@ export default function LoadsPage() {
           {formError && <p className="text-xs text-brand-danger">{formError}</p>}
           <div className="flex gap-3">
             <button type="submit" disabled={submitting}
-              className="inline-flex items-center gap-2 rounded-lg border border-amber-700/40 bg-brand-amber px-4 py-2 text-sm font-semibold text-black transition hover:bg-amber-400 disabled:opacity-60">
+              className="inline-flex items-center gap-2 rounded-lg border border-brand-warning/40 bg-brand-amber px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90 disabled:opacity-50">
               {submitting && <Loader size={14} className="animate-spin" />}
               {submitting ? "Saving…" : "Save Load"}
             </button>

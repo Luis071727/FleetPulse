@@ -24,10 +24,10 @@ type Props = {
 };
 
 const STATUS_OPTIONS = [
-  { value: "logged", label: "Logged", color: "#60a5fa" },
-  { value: "in_transit", label: "In Transit", color: "#a78bfa" },
-  { value: "delivered", label: "Delivered", color: "#22c55e" },
-  { value: "cancelled", label: "Cancelled", color: "#ef4444" },
+  { value: "logged",     label: "Logged",     color: "var(--blue-action)" },
+  { value: "in_transit", label: "In Transit", color: "var(--purple)" },
+  { value: "delivered",  label: "Delivered",  color: "var(--green)" },
+  { value: "cancelled",  label: "Cancelled",  color: "var(--red)" },
 ];
 
 export default function LoadDetailModal({ load, carriers, onClose, onSaved }: Props) {
@@ -195,7 +195,7 @@ export default function LoadDetailModal({ load, carriers, onClose, onSaved }: Pr
               {tab === "details" ? "Load Details" : tab === "messages" ? (
                 <span>
                   Messages{msgsBadge && activeTab === "messages" ? (
-                    <span style={{ marginLeft: 6, background: "#3b82f6", color: "#fff", borderRadius: 10, fontSize: 10, padding: "1px 6px", fontWeight: 700 }}>
+                    <span style={{ marginLeft: 6, background: "var(--blue-action)", color: "#fff", borderRadius: 10, fontSize: 10, padding: "1px 6px", fontWeight: 700 }}>
                       {msgsBadge}
                     </span>
                   ) : null}
@@ -232,9 +232,9 @@ export default function LoadDetailModal({ load, carriers, onClose, onSaved }: Pr
                   onClick={() => setStatus("cancelled")}
                   style={{
                     padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "none", marginLeft: "auto",
-                    background: status === "cancelled" ? "#ef444422" : "var(--bg)",
-                    color: status === "cancelled" ? "#ef4444" : "var(--mist)",
-                    outline: status === "cancelled" ? "2px solid #ef444488" : "2px solid transparent",
+                    background: status === "cancelled" ? "color-mix(in srgb, var(--red) 15%, transparent)" : "var(--bg)",
+                    color: status === "cancelled" ? "var(--red)" : "var(--mist)",
+                    outline: status === "cancelled" ? "2px solid color-mix(in srgb, var(--red) 50%, transparent)" : "2px solid transparent",
                   }}
                 >
                   Cancelled
@@ -312,16 +312,16 @@ export default function LoadDetailModal({ load, carriers, onClose, onSaved }: Pr
 
             {/* Live financial summary */}
             <div style={{ display: "flex", gap: 16, padding: "10px 14px", background: "var(--bg)", borderRadius: 8, marginBottom: 16, flexWrap: "wrap" }}>
-              <Metric label="Net Profit" value={`$${netProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} color={netProfit >= 0 ? "#22c55e" : "#ef4444"} />
-              <Metric label="Net RPM" value={`$${netRpm.toFixed(2)}`} color={netRpm >= 1.5 ? "#22c55e" : netRpm >= 1.0 ? "#f59e0b" : "#ef4444"} />
-              <Metric label="Gross RPM" value={numMiles ? `$${(numRate / numMiles).toFixed(2)}` : "—"} color="var(--white)" />
-              <Metric label="Margin" value={numRate ? `${Math.round((netProfit / numRate) * 100)}%` : "—"} color={netProfit >= 0 ? "#22c55e" : "#ef4444"} />
+              <Metric label="Net Profit" value={`$${netProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} color={netProfit >= 0 ? "var(--green)" : "var(--red)"} />
+              <Metric label="Net RPM"    value={`$${netRpm.toFixed(2)}`}                                                 color={netRpm >= 1.5 ? "var(--green)" : netRpm >= 1.0 ? "var(--amber)" : "var(--red)"} />
+              <Metric label="Gross RPM"  value={numMiles ? `$${(numRate / numMiles).toFixed(2)}` : "—"}                  color="var(--white)" />
+              <Metric label="Margin"     value={numRate ? `${Math.round((netProfit / numRate) * 100)}%` : "—"}           color={netProfit >= 0 ? "var(--green)" : "var(--red)"} />
             </div>
 
-            {saveError && <p style={{ color: "#ef4444", fontSize: 13, marginBottom: 8 }}>{saveError}</p>}
+            {saveError && <p style={{ color: "var(--red)", fontSize: 13, marginBottom: 8 }}>{saveError}</p>}
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button type="button" onClick={onClose} style={btnGhostStyle}>Cancel</button>
-              <button type="button" onClick={handleSave} disabled={saving} style={{ ...btnAmberStyle, opacity: saving ? 0.6 : 1 }}>
+              <button type="button" onClick={onClose} className="fp-btn fp-btn--ghost">Cancel</button>
+              <button type="button" onClick={handleSave} disabled={saving} className="fp-btn fp-btn--primary">
                 {saving ? "Saving…" : "Save Changes"}
               </button>
             </div>
@@ -346,14 +346,14 @@ export default function LoadDetailModal({ load, carriers, onClose, onSaved }: Pr
                     <div key={msg.id} style={{ display: "flex", flexDirection: "column", alignItems: isDispatcher ? "flex-end" : "flex-start" }}>
                       <div style={{
                         maxWidth: "75%", padding: "8px 12px", borderRadius: 10,
-                        background: isDispatcher ? "#78350f" : "#1e293b",
-                        border: `1px solid ${isDispatcher ? "#f59e0b44" : "#334155"}`,
+                        background: isDispatcher ? "color-mix(in srgb, var(--amber) 12%, var(--surface))" : "var(--surface2)",
+                        border: `1px solid ${isDispatcher ? "color-mix(in srgb, var(--amber) 25%, transparent)" : "var(--border-input)"}`,
                       }}>
                         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
-                          <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 8, fontWeight: 600, background: isDispatcher ? "#f59e0b33" : "#33415566", color: isDispatcher ? "#f59e0b" : "#94a3b8", textTransform: "uppercase" as const }}>
+                          <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 8, fontWeight: 600, background: isDispatcher ? "color-mix(in srgb, var(--amber) 20%, transparent)" : "color-mix(in srgb, var(--mist) 20%, transparent)", color: isDispatcher ? "var(--amber)" : "var(--mistLt)", textTransform: "uppercase" as const }}>
                             {msg.role}
                           </span>
-                          <span style={{ fontSize: 11, color: "#64748b" }}>
+                          <span style={{ fontSize: 11, color: "var(--mist)" }}>
                             {msg.created_at ? new Date(msg.created_at).toLocaleString() : ""}
                           </span>
                         </div>
@@ -376,7 +376,7 @@ export default function LoadDetailModal({ load, carriers, onClose, onSaved }: Pr
                 type="button"
                 onClick={() => void handleSendMessage()}
                 disabled={messageSending || !messageBody.trim()}
-                style={{ ...btnAmberStyle, opacity: messageSending || !messageBody.trim() ? 0.6 : 1 }}
+                className="fp-btn fp-btn--primary"
               >
                 {messageSending ? "…" : "Send"}
               </button>
@@ -393,8 +393,8 @@ export default function LoadDetailModal({ load, carriers, onClose, onSaved }: Pr
               </div>
             ) : aiError ? (
               <div style={{ textAlign: "center", padding: "32px 0" }}>
-                <p style={{ color: "#ef4444", fontSize: 13, marginBottom: 12 }}>{aiError}</p>
-                <button type="button" onClick={() => void handleAnalyze(true)} style={btnAmberStyle}>Retry</button>
+                <p style={{ color: "var(--red)", fontSize: 13, marginBottom: 12 }}>{aiError}</p>
+                <button type="button" onClick={() => void handleAnalyze(true)} className="fp-btn fp-btn--primary">Retry</button>
               </div>
             ) : aiResult ? (
               <div>
@@ -410,7 +410,7 @@ export default function LoadDetailModal({ load, carriers, onClose, onSaved }: Pr
                   {aiResult.target_rate && (
                     <div>
                       <p style={{ margin: 0, fontSize: 11, color: "var(--mist)" }}>Target Rate</p>
-                      <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#f59e0b" }}>
+                      <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--amber)" }}>
                         ${Number(aiResult.target_rate).toLocaleString()}
                       </p>
                     </div>
@@ -434,7 +434,7 @@ export default function LoadDetailModal({ load, carriers, onClose, onSaved }: Pr
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                  <button type="button" onClick={() => void handleAnalyze(true)} disabled={analyzing} style={{ ...btnGhostStyle, fontSize: 13 }}>
+                  <button type="button" onClick={() => void handleAnalyze(true)} disabled={analyzing} className="fp-btn fp-btn--ghost" style={{ fontSize: 13 }}>
                     Refresh Analysis
                   </button>
                 </div>
@@ -465,9 +465,9 @@ function Metric({ label, value, color }: { label: string; value: string; color: 
 }
 
 function MetricBox({ label, value, threshold }: { label: string; value: string; threshold: "good" | "warn" | "bad" }) {
-  const color = threshold === "good" ? "#22c55e" : threshold === "warn" ? "#f59e0b" : "#ef4444";
+  const color = threshold === "good" ? "var(--green)" : threshold === "warn" ? "var(--amber)" : "var(--red)";
   return (
-    <div style={{ padding: "10px 12px", background: "var(--bg)", borderRadius: 8, border: `1px solid ${color}33` }}>
+    <div style={{ padding: "10px 12px", background: "var(--bg)", borderRadius: 8, border: `1px solid color-mix(in srgb, ${color} 20%, transparent)` }}>
       <p style={{ margin: "0 0 4px", fontSize: 10, color: "var(--mist)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</p>
       <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color }}>{value}</p>
     </div>
@@ -475,12 +475,10 @@ function MetricBox({ label, value, threshold }: { label: string; value: string; 
 }
 
 function recColor(rec: string) {
-  if (rec === "GO") return "#22c55e";
-  if (rec === "NEGOTIATE") return "#f59e0b";
-  return "#ef4444";
+  if (rec === "GO")        return "var(--green)";
+  if (rec === "NEGOTIATE") return "var(--amber)";
+  return "var(--red)";
 }
 
 const lblStyle: React.CSSProperties = { fontSize: 11, color: "var(--mist)", display: "block", marginBottom: 3, fontWeight: 500 };
-const inpStyle: React.CSSProperties = { padding: "8px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--white)", fontSize: 14, width: "100%", boxSizing: "border-box" as const };
-const btnAmberStyle: React.CSSProperties = { padding: "8px 16px", borderRadius: 6, border: "none", background: "var(--amber)", color: "#000", fontSize: 14, cursor: "pointer", fontWeight: 700 };
-const btnGhostStyle: React.CSSProperties = { padding: "8px 16px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--mist)", fontSize: 14, cursor: "pointer" };
+const inpStyle: React.CSSProperties = { padding: "8px 12px", borderRadius: 6, border: "1px solid var(--border-input)", background: "var(--input-bg)", color: "var(--white)", fontSize: 14, width: "100%", boxSizing: "border-box" as const };
