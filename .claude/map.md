@@ -3,7 +3,7 @@
 Use this file before any implementation task. Find the feature area, read only those files.
 Update this map after any research phase that reveals new connections.
 
-Last updated: 2026-04-25 (Today's Work dashboard: unified actions engine; carrier portal CTAs navigate to /invoices instead of inline modals)
+Last updated: 2026-04-29 (Global component polish: unified CSS design system across both apps)
 
 ---
 
@@ -574,11 +574,28 @@ Helper: `app/common/schemas.py` → `ok()`, `ResponseEnvelope`
 ## Cross-Cutting Concerns
 
 ### Styling System
-- Config: `FleetPulse/tailwind.config.ts` (carrier portal) — brand color palette
-- Dispatcher app has its own `tailwind.config` (similar tokens)
-- Key tokens: `brand-amber` (#F59E0B), `brand-surface` (#0D1318), `brand-slate` (#F0F6FC), `brand-danger`, `brand-success`, `brand-warning`
+
+**Carrier Portal (Tailwind):**
+- Config: `FleetPulse/tailwind.config.ts` — brand color palette
+- Key tokens: `brand-amber` (#F59E0B), `brand-surface` (#0D1318), `brand-slate` (#F0F6FC), `brand-danger` (#EF4444), `brand-success` (#22C55E), `brand-warning` (#F59E0B), `brand-info` (#38BDF8)
 - `cn()` helper: `FleetPulse/lib/cn.ts` — clsx + tailwind-merge
-- Icons: `components/icons/index.tsx` — custom SVG set; includes Pencil, Trash2 (2026-03-31), SearchTruck (2026-04-01)
+- Global styles: `FleetPulse/app/globals.css` — `.card`, `.section-title` utility classes; IBM Plex fonts
+- **RULE:** Never use raw Tailwind semantic colors (blue-950, green-400, red-950 etc.) — always use `brand-*` tokens
+
+**Dispatcher App (CSS variables, no Tailwind):**
+- Global styles: `fleetpulse-dispatcher/frontend/styles/globals.css` — single source of truth
+- CSS vars: `--bg`, `--surface`, `--surface2`, `--surface3`, `--border`, `--border-input`, `--amber`, `--green`, `--red`, `--blue`, `--blue-action`, `--purple`, `--orange`, `--white`, `--slate`, `--mist`, `--mistLt`, `--input-bg`
+- **Utility classes (use these, never inline hex):**
+  - Buttons: `.fp-btn`, `.fp-btn--primary` (amber), `.fp-btn--success` (green), `.fp-btn--ghost`, `.fp-btn--outline`, `.fp-btn--danger`, `.fp-btn--link`, `.fp-btn--sm`
+  - Badges: `.fp-badge`, `.fp-badge--{active|idle|issues|new|paid|pending|sent|overdue|shortpaid|claim|logged|transit|delivered|cancelled|unverified}`
+  - Inputs: `.fp-input`, `.fp-select`, `.fp-input--sm`, `.fp-select--sm`
+  - Form: `.fp-label`, `.fp-fieldset`, `.fp-section-header`, `.fp-kv`, `.fp-kv-label`, `.fp-kv-value`
+  - Layout: `.fp-form-grid`, `.fp-chip`, `.fp-chip--active`, `.fp-spinner`, `.fp-skeleton`
+
+**Shared component:**
+- `FleetPulse/components/StatusBadge.tsx` — covers all status types: `LoadStatus | DocumentRequestStatus | ComplianceStatus | InvoiceStatus`; import with `@/components/StatusBadge`; do NOT create local StatusBadge/StatusPill components in pages
+
+**Icons:** `fleetpulse-dispatcher/frontend/components/icons/index.tsx` — custom SVG set; includes Pencil, Trash2, SearchTruck
 
 ### Error Handling
 - Backend: global exception handler in `main.py:30–36` → returns `ResponseEnvelope` with `error_code: INTERNAL_ERROR`
