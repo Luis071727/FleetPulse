@@ -279,6 +279,10 @@ export async function sendInvoice(id: string) {
   });
 }
 
+export async function getCollectionQueue() {
+  return apiFetch("/invoices/collection-queue");
+}
+
 // ── AI endpoints ──
 
 export async function analyzeLoad(loadId: string, forceRefresh = false) {

@@ -1,5 +1,5 @@
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -108,8 +108,58 @@ def _get_carriers_lookup(org_id: str, sb=None) -> dict[str, dict]:
     return carriers
 
 
+_COLLECTION_ACTIONS = {
+    "not_sent": "Send invoice",
+    "waiting": "Wait or gentle follow-up",
+    "follow_up": "Send follow-up",
+    "urgent": "Escalate follow-up",
+}
+_COLLECTION_PRIORITIES = {"urgent": "high", "follow_up": "medium", "waiting": "low", "not_sent": "low"}
+_PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
+
+
+def _add_collection_fields(inv: dict) -> None:
+    """Compute and attach collection_status, recommended_action, priority, next_action_at."""
+    status = inv.get("status", "pending")
+    days = int(inv.get("days_outstanding", 0) or 0)
+
+    if status == "pending":
+        cs = "not_sent"
+    elif status == "sent" and days < 7:
+        cs = "waiting"
+    elif days >= 30 or status == "overdue":
+        cs = "urgent"
+    elif days >= 7:
+        cs = "follow_up"
+    else:
+        cs = "waiting"
+
+    inv["collection_status"] = cs
+    inv["recommended_action"] = _COLLECTION_ACTIONS[cs]
+    inv["priority"] = _COLLECTION_PRIORITIES[cs]
+
+    if cs in ("follow_up", "urgent", "not_sent"):
+        inv["next_action_at"] = datetime.now(timezone.utc).isoformat()
+    else:
+        base = _parse_date_value(inv.get("issued_date"))
+        if base:
+            next_at = datetime(base.year, base.month, base.day, tzinfo=timezone.utc) + timedelta(days=7)
+            inv["next_action_at"] = next_at.isoformat()
+        else:
+            inv["next_action_at"] = None
+
+
+def should_auto_followup(invoice: dict) -> bool:
+    """Return True when an invoice qualifies for automated follow-up (hook — do not auto-send yet)."""
+    return (
+        invoice.get("status") == "sent"
+        and int(invoice.get("days_outstanding", 0) or 0) >= 7
+        and int(invoice.get("followups_sent", 0) or 0) < 3
+    )
+
+
 def _enrich_invoices(invoices: list[dict], org_id: str, sb=None) -> list[dict]:
-    """Add carrier_name, invoice_number, and delivery-based days_outstanding."""
+    """Add carrier_name, invoice_number, delivery-based days_outstanding, and collection fields."""
     if not invoices:
         return invoices
 
@@ -146,8 +196,14 @@ def _enrich_invoices(invoices: list[dict], org_id: str, sb=None) -> list[dict]:
             days = inv.get("days_outstanding", 0)
             if isinstance(days, (int, float)) and days > 30 and inv.get("status") in ("pending", "sent"):
                 inv["status"] = "overdue"
+
+            _add_collection_fields(inv)
         else:
             inv["days_outstanding"] = 0
+            inv["collection_status"] = "collected"
+            inv["recommended_action"] = "No action needed"
+            inv["priority"] = "low"
+            inv["next_action_at"] = None
 
     return invoices
 
@@ -315,6 +371,48 @@ def list_invoices(
         total_outstanding = sum(float(iv.get("amount", 0)) for iv in rows if iv.get("status") != "paid")
         result_rows = _enrich_invoices(rows[offset:offset + limit], user.organization_id)
         return ok(result_rows, total=len(rows), total_outstanding=total_outstanding, limit=limit, offset=offset)
+
+
+@router.get("/collection-queue")
+def collection_queue(
+    user: CurrentUser = Depends(require_authenticated),
+) -> ResponseEnvelope:
+    """Return sent/overdue invoices sorted by collection priority then days outstanding."""
+    try:
+        sb = get_supabase()
+        query = (
+            sb.table("invoices")
+            .select("*", count="exact")
+            .in_("status", ["sent", "overdue"])
+            .is_("deleted_at", "null")
+        )
+        if user.organization_id:
+            query = query.eq("organization_id", user.organization_id)
+        if user.role != "dispatcher_admin" and user.carrier_id:
+            query = query.eq("carrier_id", user.carrier_id)
+        result = query.execute()
+        data = result.data or []
+        total = result.count if result.count is not None else len(data)
+    except Exception:
+        invoices = _get_invoices_mem()
+        data = [
+            iv for iv in invoices
+            if iv.get("organization_id") == user.organization_id
+            and not iv.get("deleted_at")
+            and iv.get("status") in ("sent", "overdue")
+        ]
+        if user.role != "dispatcher_admin" and user.carrier_id:
+            data = [iv for iv in data if iv.get("carrier_id") == user.carrier_id]
+        total = len(data)
+
+    data = _enrich_invoices(data, user.organization_id or "", sb=None)
+    data.sort(
+        key=lambda x: (
+            _PRIORITY_RANK.get(x.get("priority", "low"), 2),
+            -int(x.get("days_outstanding", 0) or 0),
+        )
+    )
+    return ok(data, total=total)
 
 
 @router.get("/{invoice_id}")

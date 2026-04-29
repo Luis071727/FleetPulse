@@ -19,6 +19,21 @@ function daysOutstanding(issuedDate: string | null): number {
   return Math.floor((Date.now() - new Date(issuedDate).getTime()) / 86_400_000);
 }
 
+function collectionStatus(status: string, days: number): "not_sent" | "waiting" | "follow_up" | "urgent" {
+  if (status === "pending") return "not_sent";
+  if (status === "sent" && days < 7) return "waiting";
+  if (days >= 30 || status === "overdue") return "urgent";
+  if (days >= 7) return "follow_up";
+  return "waiting";
+}
+
+const COLLECTION_BADGE_STYLES: Record<string, { label: string; cls: string }> = {
+  not_sent:  { label: "Not Sent",  cls: "bg-brand-slate/10 text-brand-slate-light border-brand-border" },
+  waiting:   { label: "Waiting",   cls: "bg-brand-slate/10 text-brand-slate-light border-brand-border" },
+  follow_up: { label: "Follow-up", cls: "bg-brand-warning/10 text-brand-warning border-brand-warning/30" },
+  urgent:    { label: "Urgent",    cls: "bg-brand-danger/10 text-brand-danger border-brand-danger/30" },
+};
+
 function fmtCurrency(n: number | null) {
   if (n == null) return "—";
   return "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -151,6 +166,19 @@ export default function InvoicesPage() {
   const totalEarned = invoices.filter((i) => i.status === "paid").reduce((s, i) => s + (i.amount ?? 0), 0);
   const isSelfManaged = portalMode === "self_managed";
 
+  const collectionQueue = invoices
+    .filter((i) => i.status === "sent" || i.status === "overdue")
+    .map((i) => {
+      const days = daysOutstanding(i.issued_date);
+      return { ...i, _days: days, _cs: collectionStatus(i.status as string, days) };
+    })
+    .sort((a, b) => {
+      const rank: Record<string, number> = { urgent: 0, follow_up: 1, waiting: 2, not_sent: 3 };
+      const ra = rank[a._cs] ?? 3;
+      const rb = rank[b._cs] ?? 3;
+      return ra !== rb ? ra - rb : b._days - a._days;
+    });
+
   if (loading) return <p className="text-sm text-brand-slate-light">Loading invoices...</p>;
   if (error) return <p className="text-sm text-brand-danger">{error}</p>;
 
@@ -185,6 +213,64 @@ export default function InvoicesPage() {
           <p className="mt-1 font-mono text-xl font-semibold text-brand-slate">{invoices.length}</p>
         </div>
       </div>
+
+      {/* Get Paid Faster section */}
+      {collectionQueue.length > 0 ? (
+        <div className="card p-5 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-semibold text-brand-slate text-sm">Get Paid Faster</p>
+            <span className="text-xs text-brand-slate-light">{collectionQueue.length} outstanding</span>
+          </div>
+          <div className="space-y-2">
+            {collectionQueue.map((inv) => {
+              const badge = COLLECTION_BADGE_STYLES[inv._cs];
+              return (
+                <div key={inv.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-brand-border bg-brand-bg/40 px-3 py-2">
+                  <div className="min-w-0">
+                    {inv.loads && (
+                      <p className="text-xs font-medium text-brand-slate truncate">{inv.loads.origin} → {inv.loads.destination}</p>
+                    )}
+                    <div className="mt-0.5 flex items-center gap-2">
+                      <span className="font-mono text-xs text-brand-slate-light">{inv.invoice_number ?? `INV-${inv.id.slice(-8).toUpperCase()}`}</span>
+                      <span className={cn("inline-block rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase", badge.cls)}>{badge.label}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-right">
+                      <p className="font-mono text-sm font-semibold text-brand-slate">{fmtCurrency(inv.amount)}</p>
+                      <p className="text-xs text-brand-slate-light">{inv._days}d outstanding</p>
+                    </div>
+                    {isSelfManaged && (
+                      <div className="flex gap-1.5">
+                        {inv._cs === "not_sent" && (
+                          <button type="button" onClick={() => setSendModalInvoice(inv as InvoiceWithLoad)}
+                            className="inline-flex items-center gap-1 rounded-md bg-brand-info/10 hover:bg-brand-info/20 text-brand-info text-xs px-2.5 py-1.5 transition-colors">
+                            <Send size={10} /> Send Invoice
+                          </button>
+                        )}
+                        {(inv._cs === "follow_up" || inv._cs === "urgent") && (
+                          <button type="button" onClick={() => setFollowUpInvoice(inv as InvoiceWithLoad)}
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-md text-xs px-2.5 py-1.5 transition-colors",
+                              inv._cs === "urgent"
+                                ? "bg-brand-danger/10 hover:bg-brand-danger/20 text-brand-danger"
+                                : "bg-brand-warning/10 hover:bg-brand-warning/20 text-brand-warning"
+                            )}>
+                            <Sparkles size={10} />
+                            {inv._cs === "urgent" ? "Escalate" : "Send Follow-up"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : invoices.some((i) => i.status === "paid") && invoices.every((i) => i.status === "paid") ? (
+        <div className="card p-4 text-sm text-brand-success text-center">You&apos;re fully collected ✓</div>
+      ) : null}
 
       {/* New Invoice form */}
       {isSelfManaged && showForm && (
