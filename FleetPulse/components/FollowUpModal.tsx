@@ -20,10 +20,10 @@ type DraftResponse = {
 };
 
 const TONE_COLORS: Record<string, string> = {
-  polite: "bg-green-950 text-green-400 border-green-800",
-  firm: "bg-orange-950 text-orange-400 border-orange-800",
-  assertive: "bg-brand-amber-light text-brand-amber border-brand-amber/30",
-  final: "bg-red-950 text-red-400 border-red-800",
+  polite:    "border border-emerald-700/40 bg-emerald-950/40 text-emerald-300",
+  firm:      "border border-orange-700/40 bg-orange-950/40 text-orange-300",
+  assertive: "border border-amber-700/40 bg-brand-amber-light text-brand-amber",
+  final:     "border border-rose-700/40 bg-rose-950/40 text-rose-300",
 };
 
 export default function FollowUpModal({ invoiceId, invoiceNumber, onClose, onSent }: Props) {
@@ -161,7 +161,7 @@ export default function FollowUpModal({ invoiceId, invoiceNumber, onClose, onSen
                 <button
                   type="button"
                   onClick={handleMarkSent}
-                  className="inline-flex items-center gap-2 rounded-lg border border-blue-800 bg-blue-950 px-4 py-2 text-sm font-semibold text-blue-300 hover:bg-blue-900"
+                  className="inline-flex items-center gap-2 rounded-lg border border-brand-info/30 bg-brand-info/10 px-4 py-2 text-sm font-semibold text-brand-info hover:bg-brand-info/20"
                 >
                   Mark as Sent
                 </button>

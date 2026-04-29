@@ -9,15 +9,22 @@ type Props = {
   onSent?: () => void;
 };
 
+const TONE_BADGE: Record<string, string> = {
+  polite:    "fp-badge fp-badge--active",
+  firm:      "fp-badge fp-badge--shortpaid",
+  assertive: "fp-badge fp-badge--idle",
+  final:     "fp-badge fp-badge--overdue",
+};
+
 export default function FollowUpModal({ invoiceId, onSent }: Props) {
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
-  const [tone, setTone] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [open, setOpen]         = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [subject, setSubject]   = useState("");
+  const [body, setBody]         = useState("");
+  const [tone, setTone]         = useState("");
+  const [error, setError]       = useState<string | null>(null);
+  const [sent, setSent]         = useState(false);
+  const [copied, setCopied]     = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
 
   const handleOpen = async () => {
@@ -44,6 +51,8 @@ export default function FollowUpModal({ invoiceId, onSent }: Props) {
     }
   };
 
+  const handleClose = () => setOpen(false);
+
   const handleMarkSent = () => {
     setSent(true);
     onSent?.();
@@ -61,73 +70,106 @@ export default function FollowUpModal({ invoiceId, onSent }: Props) {
     }
   };
 
-  const toneColor = tone === "final" ? "#ef4444" : tone === "assertive" ? "#f59e0b" : tone === "firm" ? "#fb923c" : "#22c55e";
-
   return (
     <div style={{ display: "inline-block" }}>
-      <button type="button" onClick={handleOpen} style={btnStyle}>Draft Follow-up</button>
+      <button type="button" onClick={handleOpen} className="fp-btn fp-btn--sm fp-btn--outline">
+        Draft Follow-up
+      </button>
+
       {open && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex",
-          justifyContent: "center", alignItems: "center", zIndex: 100 }}>
-          <div style={{ background: "#0f172a", borderRadius: 12, padding: 24, width: 520,
-            border: "1px solid #334155", maxHeight: "80vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <h3 style={{ margin: 0, fontSize: 16 }}>Invoice Follow-up</h3>
-              <button type="button" onClick={() => setOpen(false)}
-                style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center" }}><X size={18} /></button>
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex",
+            justifyContent: "center", alignItems: "center", zIndex: 100 }}
+          onClick={handleClose}
+        >
+          <div
+            className="fp-modal"
+            style={{ background: "var(--surface)", borderRadius: 12, padding: 24, width: 520,
+              border: "1px solid var(--border)", maxHeight: "80vh", overflowY: "auto" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Invoice Follow-up</h3>
+                <p style={{ margin: "3px 0 0", fontSize: 12, color: "var(--mist)" }}>AI-drafted payment reminder</p>
+              </div>
+              <button type="button" onClick={handleClose}
+                style={{ background: "none", border: "none", color: "var(--mistLt)", cursor: "pointer", display: "flex", alignItems: "center" }}>
+                <X size={18} />
+              </button>
             </div>
 
+            {/* Loading */}
             {loading && (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--mist)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--mist)", padding: "12px 0" }}>
                 <span className="fp-spinner" />
-                <p style={{ margin: 0 }}>Generating draft...</p>
+                <p style={{ margin: 0, fontSize: 13 }}>Generating draft…</p>
               </div>
             )}
-            {error && <p style={{ color: "#ef4444", fontSize: 13 }}>{error}</p>}
 
+            {/* Error */}
+            {error && !loading && (
+              <p style={{ color: "var(--red)", fontSize: 13, margin: "8px 0" }}>{error}</p>
+            )}
+
+            {/* Content */}
             {!loading && !error && (
               <>
                 {tone && (
-                  <div style={{ marginBottom: 8 }}>
-                    <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: 12,
-                      fontSize: 12, background: toneColor, color: "#fff" }}>
-                      {tone.toUpperCase()}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                    <span className={TONE_BADGE[tone] ?? "fp-badge fp-badge--new"}>
+                      {tone}
                     </span>
                     {tone === "final" && (
-                      <span style={{ fontSize: 12, color: "#f59e0b", marginLeft: 8 }}>
-                        Escalation recommended
-                      </span>
+                      <span style={{ fontSize: 12, color: "var(--amber)" }}>Escalation recommended</span>
                     )}
                   </div>
                 )}
-                <label style={{ fontSize: 13, color: "#94a3b8" }}>Subject</label>
-                <input
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  style={{ ...inputStyle, marginBottom: 8 }}
-                />
-                <label style={{ fontSize: 13, color: "#94a3b8" }}>Message</label>
-                <textarea
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  rows={8}
-                  style={{ ...inputStyle, resize: "vertical" }}
-                />
-                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+
+                <div style={{ marginBottom: 10 }}>
+                  <label className="fp-label">Subject</label>
+                  <input
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    className="fp-input"
+                  />
+                </div>
+
+                <div style={{ marginBottom: 14 }}>
+                  <label className="fp-label">Message</label>
+                  <textarea
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    rows={8}
+                    className="fp-input"
+                    style={{ resize: "vertical" }}
+                  />
+                </div>
+
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {!sent ? (
-                    <button type="button" onClick={handleMarkSent} style={btnPrimary}>Mark as Sent</button>
+                    <button type="button" onClick={handleMarkSent} className="fp-btn fp-btn--outline">
+                      Mark as Sent
+                    </button>
                   ) : (
-                    <span style={{ color: "#22c55e", fontSize: 13 }}>Marked as sent</span>
+                    <span style={{ fontSize: 13, color: "var(--green)", display: "flex", alignItems: "center", gap: 4 }}>
+                      ✓ Marked as sent
+                    </span>
                   )}
                   <button
                     type="button"
                     onClick={handleCopy}
-                    style={copied ? { ...btnSecondary, color: "#22c55e", borderColor: "#22c55e" } : btnSecondary}
+                    className="fp-btn fp-btn--ghost"
+                    style={copied ? { color: "var(--green)", borderColor: "var(--green)" } : undefined}
                   >
                     {copied ? "Copied!" : "Copy to Clipboard"}
                   </button>
                 </div>
-                {copyError && <p style={{ color: "#ef4444", fontSize: 13, marginTop: 8 }}>{copyError}</p>}
+
+                {copyError && (
+                  <p style={{ color: "var(--red)", fontSize: 12, marginTop: 8 }}>{copyError}</p>
+                )}
               </>
             )}
           </div>
@@ -136,21 +178,3 @@ export default function FollowUpModal({ invoiceId, onSent }: Props) {
     </div>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  padding: "8px 12px", borderRadius: 6, border: "1px solid #334155",
-  background: "#1e293b", color: "#f8fafc", fontSize: 14, width: "100%",
-  display: "block",
-};
-const btnStyle: React.CSSProperties = {
-  padding: "4px 10px", borderRadius: 4, border: "1px solid #334155",
-  background: "transparent", color: "#60a5fa", fontSize: 12, cursor: "pointer",
-};
-const btnPrimary: React.CSSProperties = {
-  padding: "8px 16px", borderRadius: 6, border: "none", background: "#3b82f6",
-  color: "#fff", fontSize: 14, cursor: "pointer",
-};
-const btnSecondary: React.CSSProperties = {
-  padding: "8px 16px", borderRadius: 6, border: "1px solid #334155",
-  background: "transparent", color: "#94a3b8", fontSize: 14, cursor: "pointer",
-};
