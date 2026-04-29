@@ -171,7 +171,7 @@ export default function AddCarrierModal({ onComplete }: Props) {
 
       {/* FMCSA verified preview */}
       {preview && !manualMode && (
-        <div style={{ border: "1px solid var(--green)", borderRadius: 8, padding: 12, marginBottom: 8, background: "rgba(34,197,94,0.05)" }}>
+        <div style={{ border: "1px solid var(--green)", borderRadius: 8, padding: 12, marginBottom: 8, background: "color-mix(in srgb, var(--green) 5%, transparent)" }}>
           <p className="fp-mono" style={{ fontSize: 11, color: "var(--green)", margin: "0 0 8px", letterSpacing: "0.05em" }}>✓ FMCSA VERIFIED</p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
             <p style={{ margin: 0, fontSize: 13 }}><strong>Name:</strong> {preview.legal_name || "-"}</p>
@@ -259,8 +259,8 @@ export default function AddCarrierModal({ onComplete }: Props) {
 }
 
 const inputStyle: React.CSSProperties = {
-  padding: "8px 12px", borderRadius: 6, border: "1px solid var(--border)",
-  background: "var(--surface)", color: "var(--white)", fontSize: 14, flex: 1,
+  padding: "8px 12px", borderRadius: 6, border: "1px solid var(--border-input)",
+  background: "var(--input-bg)", color: "var(--white)", fontSize: 14, flex: 1,
 };
 const btnStyle: React.CSSProperties = {
   padding: "8px 16px", borderRadius: 6, border: "none", background: "var(--amber)",

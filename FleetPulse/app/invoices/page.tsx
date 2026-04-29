@@ -4,31 +4,13 @@ import { useEffect, useState } from "react";
 import { Loader, Plus, Trash2, CheckCircle, Send, Sparkles } from "lucide-react";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase";
-import { cn } from "@/lib/cn";
-import type { CarrierPortalMode, CarrierRow, InvoiceRow, LoadRow } from "@/lib/types";
+import type { CarrierPortalMode, CarrierRow, InvoiceRow, InvoiceStatus, LoadRow } from "@/lib/types";
 import InvoiceSendModal from "@/components/InvoiceSendModal";
 import FollowUpModal from "@/components/FollowUpModal";
+import StatusBadge from "@/components/StatusBadge";
 
 type InvoiceWithLoad = InvoiceRow & {
   loads?: { load_number: string | null; origin: string; destination: string } | null;
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  pending: "Pending",
-  sent: "Sent",
-  paid: "Paid",
-  overdue: "Overdue",
-  shortpaid: "Short Paid",
-  claim: "Claim",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-brand-amber-light text-brand-amber border-brand-amber/30",
-  sent: "bg-blue-950 text-blue-300 border-blue-800",
-  paid: "bg-green-950 text-green-400 border-green-800",
-  overdue: "bg-red-950 text-red-400 border-red-800",
-  shortpaid: "bg-orange-950 text-orange-400 border-orange-800",
-  claim: "bg-purple-950 text-purple-400 border-purple-800",
 };
 
 function daysOutstanding(issuedDate: string | null): number {
@@ -39,14 +21,6 @@ function daysOutstanding(issuedDate: string | null): number {
 function fmtCurrency(n: number | null) {
   if (n == null) return "—";
   return "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium", STATUS_COLORS[status] ?? "bg-brand-surface text-brand-slate-light border-brand-border")}>
-      {STATUS_LABEL[status] ?? status}
-    </span>
-  );
 }
 
 const FIELD_CLS = "w-full rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-sm text-brand-slate focus:outline-none focus:ring-1 focus:ring-brand-amber";
@@ -188,7 +162,7 @@ export default function InvoicesPage() {
         </div>
         {isSelfManaged && (
           <button type="button" onClick={() => { setShowForm((v) => !v); setFormError(null); }}
-            className="inline-flex items-center gap-2 rounded-lg border border-amber-700/40 bg-brand-amber px-4 py-2 text-sm font-semibold text-black transition hover:bg-amber-400">
+            className="inline-flex items-center gap-2 rounded-lg border border-brand-warning/40 bg-brand-amber px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90">
             <Plus size={15} />
             {showForm ? "Cancel" : "New Invoice"}
           </button>
@@ -199,11 +173,11 @@ export default function InvoicesPage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="card p-4">
           <p className="text-xs text-brand-slate-light">Total Earned</p>
-          <p className="mt-1 font-mono text-xl font-semibold text-green-400">{fmtCurrency(totalEarned)}</p>
+          <p className="mt-1 font-mono text-xl font-semibold text-brand-success">{fmtCurrency(totalEarned)}</p>
         </div>
         <div className="card p-4">
           <p className="text-xs text-brand-slate-light">Outstanding</p>
-          <p className={cn("mt-1 font-mono text-xl font-semibold", outstanding > 0 ? "text-red-400" : "text-brand-slate-light")}>{fmtCurrency(outstanding)}</p>
+          <p className={cn("mt-1 font-mono text-xl font-semibold", outstanding > 0 ? "text-brand-danger" : "text-brand-slate-light")}>{fmtCurrency(outstanding)}</p>
         </div>
         <div className="card p-4 col-span-2 sm:col-span-1">
           <p className="text-xs text-brand-slate-light">Total Invoices</p>
@@ -255,7 +229,7 @@ export default function InvoicesPage() {
           {formError && <p className="text-xs text-brand-danger">{formError}</p>}
           <div className="flex gap-3">
             <button type="submit" disabled={submitting}
-              className="inline-flex items-center gap-2 rounded-lg border border-amber-700/40 bg-brand-amber px-4 py-2 text-sm font-semibold text-black transition hover:bg-amber-400 disabled:opacity-60">
+              className="inline-flex items-center gap-2 rounded-lg border border-brand-warning/40 bg-brand-amber px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90 disabled:opacity-50">
               {submitting && <Loader size={14} className="animate-spin" />}
               {submitting ? "Saving…" : "Create Invoice"}
             </button>
@@ -272,7 +246,7 @@ export default function InvoicesPage() {
         <div className="space-y-2">
           {invoices.map((inv) => {
             const days = daysOutstanding(inv.issued_date);
-            const daysColor = inv.status === "paid" ? "text-brand-slate-light" : days > 60 ? "text-red-400" : days > 30 ? "text-brand-warning" : "text-brand-slate-light";
+            const daysColor = inv.status === "paid" ? "text-brand-slate-light" : days > 60 ? "text-brand-danger" : days > 30 ? "text-brand-warning" : "text-brand-slate-light";
             const expanded = expandedId === inv.id;
             const showActions = isSelfManaged && actionInvoiceId === inv.id;
             const isDeleting = deletingId === inv.id;
@@ -288,7 +262,7 @@ export default function InvoicesPage() {
                       <div className="mt-0.5 flex flex-wrap items-center gap-2">
                         <span className="font-mono text-xs text-brand-slate-light">{inv.invoice_number ?? `INV-${inv.id.slice(-8).toUpperCase()}`}</span>
                         {inv.loads?.load_number && <span className="font-mono text-xs text-brand-slate-light">· Load #{inv.loads.load_number}</span>}
-                        <StatusBadge status={inv.status} />
+                        <StatusBadge status={inv.status as InvoiceStatus} />
                       </div>
                     </div>
                     <div className="flex items-center gap-4 shrink-0">
@@ -326,14 +300,14 @@ export default function InvoicesPage() {
                       <div className="flex flex-wrap gap-2 pt-1 border-t border-brand-border">
                         {inv.status !== "paid" && (
                           <button type="button" disabled={isMarkingPaid} onClick={() => void markPaid(inv)}
-                            className="inline-flex items-center gap-1.5 rounded-md bg-green-950 hover:bg-green-900 text-green-400 text-xs px-3 py-1.5 transition-colors disabled:opacity-60">
+                            className="inline-flex items-center gap-1.5 rounded-md bg-brand-success/10 hover:bg-brand-success/20 text-brand-success text-xs px-3 py-1.5 transition-colors disabled:opacity-60">
                             {isMarkingPaid ? <Loader size={11} className="animate-spin" /> : <CheckCircle size={11} />}
                             Mark Paid
                           </button>
                         )}
                         {inv.status !== "paid" && (
                           <button type="button" onClick={() => setSendModalInvoice(inv)}
-                            className="inline-flex items-center gap-1.5 rounded-md bg-blue-950 hover:bg-blue-900 text-blue-400 text-xs px-3 py-1.5 transition-colors">
+                            className="inline-flex items-center gap-1.5 rounded-md bg-brand-info/10 hover:bg-brand-info/20 text-brand-info text-xs px-3 py-1.5 transition-colors">
                             <Send size={11} />
                             Send Invoice
                           </button>
@@ -346,7 +320,7 @@ export default function InvoicesPage() {
                           </button>
                         )}
                         {showActions ? (
-                          <div className="flex items-center gap-2 rounded-md border border-brand-danger bg-red-950/30 px-3 py-1.5">
+                          <div className="flex items-center gap-2 rounded-md border border-brand-danger bg-brand-danger/10 px-3 py-1.5">
                             <span className="text-xs text-brand-danger">Delete this invoice?</span>
                             <button type="button" disabled={isDeleting} onClick={() => void deleteInvoice(inv)}
                               className="text-xs font-semibold text-brand-danger hover:underline disabled:opacity-60">
@@ -356,7 +330,7 @@ export default function InvoicesPage() {
                           </div>
                         ) : (
                           <button type="button" onClick={() => setActionInvoiceId(inv.id)}
-                            className="inline-flex items-center gap-1.5 rounded-md border border-brand-border text-brand-danger text-xs px-3 py-1.5 hover:bg-red-950/30 transition-colors">
+                            className="inline-flex items-center gap-1.5 rounded-md border border-brand-border text-brand-danger text-xs px-3 py-1.5 hover:bg-brand-danger/10 transition-colors">
                             <Trash2 size={11} />
                             Delete
                           </button>

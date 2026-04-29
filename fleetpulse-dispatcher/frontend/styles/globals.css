@@ -4,20 +4,175 @@
 /* ── Design Tokens ── */
 :root {
   color-scheme: dark;
-  --bg: #080c10;
-  --surface: #0d1318;
-  --border: #1e2d3d;
-  --amber: #f59e0b;
-  --green: #22c55e;
-  --red: #ef4444;
-  --blue: #38bdf8;
-  --mist: #64748b;
-  --white: #f0f6fc;
+  /* Backgrounds */
+  --bg:       #080c10;
+  --surface:  #0d1318;
   --surface2: #121a22;
   --surface3: #182230;
-  --border2: #253545;
+  /* Borders */
+  --border:       #1e2d3d;
+  --border2:      #253545;
+  --border-input: #334155;
+  /* Text */
+  --white:  #f0f6fc;
+  --slate:  #cbd5e1;
   --mistLt: #94a3b8;
+  --mist:   #64748b;
+  /* Accent */
+  --amber:  #f59e0b;
+  --green:  #22c55e;
+  --red:    #ef4444;
+  --blue:   #38bdf8;
+  --blue-action: #3b82f6;
+  --purple: #a78bfa;
+  --orange: #f97316;
+  /* Input background (darker than surface) */
+  --input-bg: #0d1117;
 }
+
+/* ── Button Primitives ── */
+.fp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.15s, background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.fp-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.fp-btn--sm { padding: 4px 10px; font-size: 12px; border-radius: 4px; font-weight: 500; }
+
+.fp-btn--primary { background: var(--amber); color: #000; }
+.fp-btn--primary:hover:not(:disabled) { opacity: 0.88; }
+
+.fp-btn--success { background: var(--green); color: #fff; }
+.fp-btn--success:hover:not(:disabled) { opacity: 0.88; }
+
+.fp-btn--ghost {
+  background: transparent;
+  color: var(--mistLt);
+  border: 1px solid var(--border-input);
+}
+.fp-btn--ghost:hover:not(:disabled) { color: var(--white); border-color: var(--mist); }
+
+.fp-btn--outline {
+  background: transparent;
+  color: var(--blue-action);
+  border: 1px solid var(--border);
+}
+.fp-btn--outline:hover:not(:disabled) { border-color: var(--blue-action); }
+
+.fp-btn--danger {
+  background: transparent;
+  color: var(--red);
+  border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
+}
+.fp-btn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+}
+
+.fp-btn--link {
+  background: none;
+  border: none;
+  color: var(--blue-action);
+  padding: 0;
+  font-size: 12px;
+  font-weight: 400;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ── Input / Select Primitives ── */
+.fp-input, .fp-select {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-input);
+  background: var(--input-bg);
+  color: var(--white);
+  font-size: 14px;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.fp-input:focus, .fp-select:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+.fp-input--sm, .fp-select--sm { padding: 5px 9px; font-size: 13px; }
+
+/* ── Badge Primitives ── */
+.fp-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.fp-badge--active    { background: color-mix(in srgb, var(--green)       15%, transparent); color: var(--green); }
+.fp-badge--idle      { background: color-mix(in srgb, var(--amber)       15%, transparent); color: var(--amber); }
+.fp-badge--issues    { background: color-mix(in srgb, var(--red)         15%, transparent); color: var(--red); }
+.fp-badge--new       { background: color-mix(in srgb, var(--mist)        15%, transparent); color: var(--mistLt); }
+.fp-badge--paid      { background: color-mix(in srgb, var(--green)       15%, transparent); color: var(--green); }
+.fp-badge--pending   { background: color-mix(in srgb, var(--amber)       15%, transparent); color: var(--amber); }
+.fp-badge--sent      { background: color-mix(in srgb, var(--blue-action) 15%, transparent); color: var(--blue-action); }
+.fp-badge--overdue   { background: color-mix(in srgb, var(--red)         15%, transparent); color: var(--red); }
+.fp-badge--shortpaid { background: color-mix(in srgb, var(--orange)      15%, transparent); color: var(--orange); }
+.fp-badge--claim     { background: color-mix(in srgb, var(--red)         20%, transparent); color: var(--red); }
+.fp-badge--logged    { background: color-mix(in srgb, var(--blue-action) 15%, transparent); color: var(--blue-action); }
+.fp-badge--transit   { background: color-mix(in srgb, var(--purple)      15%, transparent); color: var(--purple); }
+.fp-badge--delivered { background: color-mix(in srgb, var(--green)       15%, transparent); color: var(--green); }
+.fp-badge--cancelled { background: color-mix(in srgb, var(--mist)        15%, transparent); color: var(--mistLt); }
+.fp-badge--unverified { background: color-mix(in srgb, var(--amber)      15%, transparent); color: var(--amber); }
+
+/* ── Form helpers ── */
+.fp-label {
+  font-size: 11px;
+  color: var(--mist);
+  display: block;
+  margin-bottom: 3px;
+  font-weight: 500;
+}
+.fp-fieldset {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.fp-fieldset legend {
+  font-size: 12px;
+  color: var(--mistLt);
+  font-weight: 600;
+  padding: 0 6px;
+}
+
+/* ── Section header ── */
+.fp-section-header {
+  font-size: 12px;
+  color: var(--mist);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+  margin: 0 0 8px;
+}
+
+/* ── KV pair ── */
+.fp-kv { display: flex; flex-direction: column; }
+.fp-kv-label { font-size: 11px; color: var(--mist); margin: 0; }
+.fp-kv-value { font-size: 14px; margin: 0; color: var(--white); }
 
 html, body {
   margin: 0;
