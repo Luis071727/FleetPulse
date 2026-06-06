@@ -2,6 +2,7 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 
+from app.common.timestamps import utc_now_iso
 from app.config import get_supabase
 from app.fmcsa.client import FmcsaClient, FmcsaResult
 
@@ -49,7 +50,7 @@ class FmcsaCacheService:
             if mc_number:
                 query = query.eq("mc_number", mc_number)
 
-            result = query.gte("expires_at", datetime.now(timezone.utc).isoformat()).maybe_single().execute()
+            result = query.gte("expires_at", utc_now_iso()).maybe_single().execute()
             if result and result.data:
                 return result.data["response_json"]
         except Exception:

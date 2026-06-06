@@ -2,6 +2,7 @@ import logging
 from datetime import date, datetime, timezone
 from uuid import uuid4
 
+from app.common.timestamps import utc_now_iso
 from app.config import get_supabase, settings
 
 logger = logging.getLogger(__name__)
@@ -217,7 +218,7 @@ class CarrierComplianceService:
             raise ValueError(f"Invalid doc_type: {doc_type}")
 
         sb = get_supabase()
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = utc_now_iso()
 
         # Mark any prior active doc of this type as superseded so sync
         # recomputes status from the newest record.
@@ -553,7 +554,7 @@ class CarrierComplianceService:
             if requested_types.issubset(uploaded_types):
                 sb.table("carrier_document_requests").update({
                     "status": "fulfilled",
-                    "fulfilled_at": datetime.now(timezone.utc).isoformat(),
+                    "fulfilled_at": utc_now_iso(),
                 }).eq("id", req["id"]).execute()
         except Exception:
             pass  # Non-critical

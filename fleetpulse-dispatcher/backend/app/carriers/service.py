@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timezone
 
+from app.common.timestamps import utc_now_iso
 from app.config import get_supabase, safe_execute
 from app.fmcsa.cache import FmcsaCacheService
 from app.fmcsa.client import FmcsaError
@@ -141,7 +142,7 @@ class CarrierService:
         return carrier
 
     def update_carrier(self, org_id: str, carrier_id: str, updates: dict) -> dict | None:
-        updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+        updates["updated_at"] = utc_now_iso()
 
         try:
             sb = get_supabase()
@@ -227,7 +228,7 @@ class CarrierService:
         sb = get_supabase()
         result = safe_execute(
             sb.table("carriers")
-            .update({"deleted_at": datetime.now(timezone.utc).isoformat()})
+            .update({"deleted_at": utc_now_iso()})
             .eq("id", carrier_id)
             .eq("organization_id", org_id)
         )

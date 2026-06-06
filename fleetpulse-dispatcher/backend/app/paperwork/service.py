@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from app.common.timestamps import utc_now_iso
 from app.config import get_supabase, safe_execute, settings
 
 logger = logging.getLogger(__name__)
@@ -327,7 +328,7 @@ class PaperworkService:
             if requested_types.issubset(uploaded_types):
                 sb.table("invoice_document_requests").update({
                     "status": "fulfilled",
-                    "fulfilled_at": datetime.now(timezone.utc).isoformat(),
+                    "fulfilled_at": utc_now_iso(),
                 }).eq("id", req["id"]).execute()
         except Exception:
             pass  # Non-critical

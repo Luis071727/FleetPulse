@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Download, Loader, Mail, X } from "lucide-react";
 
 import { cn } from "@/lib/cn";
+import { DOC_LABELS, fmtCurrency } from "@/lib/format";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import type { InvoiceRow } from "@/lib/types";
 
@@ -25,20 +26,7 @@ type InvoiceDoc = {
   file_url: string;
 };
 
-const DOC_LABELS: Record<string, string> = {
-  BOL: "BOL",
-  POD: "POD",
-  RATE_CON: "Rate Con",
-  WEIGHT_TICKET: "Weight Ticket",
-  LUMPER_RECEIPT: "Lumper Receipt",
-  INVOICE: "Invoice",
-  OTHER: "Other",
-};
 
-function fmtCurrency(n: number | null | undefined) {
-  const v = Number(n ?? 0);
-  return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 export default function InvoiceSendModal({ invoice, carrierName, onClose, onSent }: Props) {
   const [supabase] = useState(() => (typeof window === "undefined" ? null : createBrowserSupabaseClient()));
