@@ -28,15 +28,16 @@ class BrokerService:
             if result and result.data:
                 _BROKERS.append(result.data)
                 return result.data
-        except Exception:
-            logger.debug("DB broker lookup failed, using in-memory")
+        except Exception as exc:
+            logger.warning("DB broker lookup failed for MC %s: %s", mc_number, exc)
 
         # First encounter: look up from FMCSA and compute initial trust score
         try:
             fmcsa_result, _ = self._fmcsa.get_or_fetch_broker(mc_number)
             found = fmcsa_result.found
             fmcsa_data = fmcsa_result.data if found else {}
-        except Exception:
+        except Exception as exc:
+            logger.warning("FMCSA broker lookup failed for MC %s: %s", mc_number, exc)
             found = False
             fmcsa_data = {}
 
@@ -62,8 +63,8 @@ class BrokerService:
             insert = safe_execute(sb.table("brokers").insert(row), fallback=[row])
             if insert.data and insert.data[0].get("id"):
                 row = insert.data[0]
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("DB broker insert failed for MC %s, using in-memory: %s", mc_number, exc)
 
         _BROKERS.append(row)
         return row
@@ -77,7 +78,8 @@ class BrokerService:
             sb = get_supabase()
             result = sb.table("brokers").select("*").eq("id", broker_id).maybe_single().execute()
             return result.data if result else None
-        except Exception:
+        except Exception as exc:
+            logger.warning("DB broker get_by_id failed for %s: %s", broker_id, exc)
             return None
 
     def list_brokers(
@@ -100,5 +102,6 @@ class BrokerService:
             result = query.execute()
             total = result.count if result.count is not None else len(result.data)
             return result.data or [], total
-        except Exception:
+        except Exception as exc:
+            logger.warning("DB list_brokers failed, using in-memory: %s", exc)
             return _BROKERS[offset:offset + limit], len(_BROKERS)

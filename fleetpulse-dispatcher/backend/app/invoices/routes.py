@@ -256,8 +256,8 @@ def create_invoice(
             from app.brokers.service import BrokerService
             broker = BrokerService().get_or_create_by_mc(payload.broker_mc)
             broker_id = broker.get("id")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Broker lookup failed for MC %s: %s", payload.broker_mc, exc)
 
     carrier_name = lookup_carrier_name(carrier_id)
 
