@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
 
+from app.common.timestamps import utc_now_iso
 from app.config import get_supabase, safe_execute
 
 
@@ -79,8 +79,8 @@ class InvoiceFollowupService:
         sb = get_supabase()
         safe_execute(sb.table("invoices").update({
             "last_followup_tone": tone,
-            "last_follow_up_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "last_follow_up_at": utc_now_iso(),
+            "updated_at": utc_now_iso(),
         }).eq("id", invoice_id))
 
     def increment_and_record(self, invoice: dict, tone: str) -> int:
@@ -89,7 +89,7 @@ class InvoiceFollowupService:
         safe_execute(sb.table("invoices").update({
             "followups_sent": new_count,
             "last_followup_tone": tone,
-            "last_follow_up_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "last_follow_up_at": utc_now_iso(),
+            "updated_at": utc_now_iso(),
         }).eq("id", invoice["id"]))
         return new_count

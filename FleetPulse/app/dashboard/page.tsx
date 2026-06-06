@@ -6,6 +6,7 @@ import { AlertTriangle, CheckCircle, ClipboardCopy, FileText, Mail, RefreshCw, S
 import { useRouter } from "next/navigation";
 
 import LoadCard from "@/components/LoadCard";
+import { fmtCurrency } from "@/lib/format";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import type { CarrierRow, InvoiceRow, LoadRow } from "@/lib/types";
 
@@ -20,10 +21,6 @@ type TodayAction = {
   entity_type: string;
   cta: { label: string; action: string };
 };
-
-function fmtCurrency(n: number) {
-  return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 const PRIORITY_BORDER: Record<string, string> = {
   high: "border-red-500",

@@ -5,6 +5,7 @@ import { Loader, Plus, Trash2, CheckCircle, Send, Sparkles } from "lucide-react"
 
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import { cn } from "@/lib/cn";
+import { fmtCurrency } from "@/lib/format";
 import type { CarrierPortalMode, CarrierRow, InvoiceRow, InvoiceStatus, LoadRow } from "@/lib/types";
 import InvoiceSendModal from "@/components/InvoiceSendModal";
 import FollowUpModal from "@/components/FollowUpModal";
@@ -33,11 +34,6 @@ const COLLECTION_BADGE_STYLES: Record<string, { label: string; cls: string }> = 
   follow_up: { label: "Follow-up", cls: "bg-brand-warning/10 text-brand-warning border-brand-warning/30" },
   urgent:    { label: "Urgent",    cls: "bg-brand-danger/10 text-brand-danger border-brand-danger/30" },
 };
-
-function fmtCurrency(n: number | null) {
-  if (n == null) return "—";
-  return "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 const FIELD_CLS = "w-full rounded-lg border border-brand-border bg-brand-surface px-3 py-2 text-sm text-brand-slate focus:outline-none focus:ring-1 focus:ring-brand-amber";
 const EMPTY_FORM = { load_id: "", amount: "", invoice_number: "", issued_date: "", due_date: "", customer_ap_email: "", notes: "" };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { DOC_LABELS } from "../lib/format";
 import { listInvoiceDocuments, sendInvoice } from "../services/api";
 import { X } from "./icons";
 
@@ -19,12 +20,6 @@ type Props = {
   carriers: Carrier[];
   onClose: () => void;
   onSent: () => void;
-};
-
-const DOC_LABELS: Record<string, string> = {
-  BOL: "BOL", POD: "POD", RATE_CON: "Rate Con",
-  WEIGHT_TICKET: "Weight Ticket", LUMPER_RECEIPT: "Lumper Receipt",
-  INVOICE: "Invoice", OTHER: "Other",
 };
 
 export default function InvoiceSendModal({ invoice, carriers, onClose, onSent }: Props) {

@@ -10,6 +10,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from app.common.timestamps import utc_now_iso
 from app.config import get_settings, get_supabase, safe_execute
 
 logger = logging.getLogger(__name__)
@@ -139,7 +140,7 @@ class AIService:
             "model": self.model,
             "response_data": data,
             "tokens_used": tokens,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": utc_now_iso(),
         }))
         return row_id
 
