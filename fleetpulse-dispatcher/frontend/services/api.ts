@@ -77,7 +77,15 @@ async function apiFetch<T = unknown>(
     ...(fetchOpts.headers as Record<string, string> || {}),
   };
 
-  const res = await fetch(url, { ...fetchOpts, headers });
+  let res: Response;
+  try {
+    res = await fetch(url, { ...fetchOpts, headers });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Network request failed";
+    console.error(`[apiFetch] Network error for ${path}:`, message);
+    return { data: null, error: `Network error: ${message}`, meta: {} };
+  }
+
   const json = res.status === 204 ? {} : await res.json().catch(() => ({}));
 
   // Global 401 handler — token is stale or missing, redirect to login
