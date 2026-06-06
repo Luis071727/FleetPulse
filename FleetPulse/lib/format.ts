@@ -3,7 +3,8 @@
  */
 
 export function fmtCurrency(n: number | null | undefined): string {
-  const v = Number(n ?? 0);
+  if (n == null) return "\u2014";
+  const v = Number(n);
   return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
