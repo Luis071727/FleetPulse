@@ -1,4 +1,5 @@
 import logging
+import os
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,14 +20,22 @@ from app.paperwork.routes import router as paperwork_router
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title=settings.app_name, version="0.1.0")
+_is_production = os.getenv("ENV", "development").lower() in ("production", "prod")
+
+app = FastAPI(
+    title=settings.app_name,
+    version="0.1.0",
+    docs_url=None if _is_production else "/docs",
+    redoc_url=None if _is_production else "/redoc",
+    openapi_url=None if _is_production else "/openapi.json",
+)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 
@@ -35,7 +44,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled error: %s", exc)
     return JSONResponse(
         status_code=500,
-        content={"data": None, "error": str(exc), "error_code": "INTERNAL_ERROR", "meta": {}},
+        content={"data": None, "error": "Internal server error", "error_code": "INTERNAL_ERROR", "meta": {}},
     )
 
 

@@ -79,15 +79,18 @@ export async function GET(req: NextRequest) {
   }
 
   if (state) {
-    where.push(`phy_state='${state.toUpperCase()}'`);
+    const sanitizedState = state.toUpperCase().replace(/'/g, "''").replace(/[^A-Z']/g, "");
+    where.push(`phy_state='${sanitizedState}'`);
   }
 
   if (minTrucks) {
-    where.push(`nbr_power_unit >= '${minTrucks}'`);
+    const sanitizedMin = minTrucks.replace(/[^0-9]/g, "");
+    if (sanitizedMin) where.push(`nbr_power_unit >= '${sanitizedMin}'`);
   }
 
   if (maxTrucks) {
-    where.push(`nbr_power_unit <= '${maxTrucks}'`);
+    const sanitizedMax = maxTrucks.replace(/[^0-9]/g, "");
+    if (sanitizedMax) where.push(`nbr_power_unit <= '${sanitizedMax}'`);
   }
 
   if (phoneOnly) {
