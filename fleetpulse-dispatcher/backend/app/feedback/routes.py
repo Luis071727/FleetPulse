@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.common.schemas import ResponseEnvelope, ok
@@ -30,7 +30,14 @@ async def submit_feedback(body: FeedbackIn, user: CurrentUser = Depends(require_
         "severity": body.severity,
         "status": "new",
     }
-    result = sb.table("feedback").insert(row).execute()
+    try:
+        result = sb.table("feedback").insert(row).execute()
+    except Exception as exc:
+        logger.error("Failed to submit feedback for user %s: %s", user.user_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to submit feedback",
+        ) from exc
     logger.info("Feedback submitted by %s: %s", user.user_id, body.category)
     return ok(result.data[0] if result.data else row)
 
@@ -38,11 +45,18 @@ async def submit_feedback(body: FeedbackIn, user: CurrentUser = Depends(require_
 @router.get("", response_model=ResponseEnvelope)
 async def list_feedback(user: CurrentUser = Depends(require_authenticated)):
     sb = get_supabase()
-    result = (
-        sb.table("feedback")
-        .select("*")
-        .eq("organization_id", user.organization_id)
-        .order("created_at", desc=True)
-        .execute()
-    )
+    try:
+        result = (
+            sb.table("feedback")
+            .select("*")
+            .eq("organization_id", user.organization_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error("Failed to list feedback for org %s: %s", user.organization_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve feedback",
+        ) from exc
     return ok(result.data or [])

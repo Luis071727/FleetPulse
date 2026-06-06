@@ -119,8 +119,8 @@ def _dispatcher_actions(user) -> list[dict]:
             delivered_load_ids = {
                 ld["id"] for ld in (ld_result.data or []) if ld.get("status") == "delivered"
             }
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("actions: load status fetch failed: %s", exc)
 
     for inv in invoices:
         inv_id = inv["id"]
@@ -190,8 +190,8 @@ def _dispatcher_actions(user) -> list[dict]:
                 .execute()
             )
             load_to_invoice = {row["load_id"]: row["id"] for row in (inv_map_result.data or [])}
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("actions: invoice-to-load mapping fetch failed: %s", exc)
 
         invoice_ids_with_pod: set[str] = set()
         invoice_ids_to_check = list(load_to_invoice.values())
@@ -205,8 +205,8 @@ def _dispatcher_actions(user) -> list[dict]:
                     .execute()
                 )
                 invoice_ids_with_pod = {row["invoice_id"] for row in (pod_result.data or [])}
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("actions: POD check failed: %s", exc)
 
         for ld in delivered_loads:
             load_id = ld["id"]
@@ -234,7 +234,8 @@ def _dispatcher_actions(user) -> list[dict]:
             .execute()
         )
         carrier_rows = carriers_result.data or []
-    except Exception:
+    except Exception as exc:
+        logger.debug("actions: carriers fetch failed for org %s: %s", org_id, exc)
         carrier_rows = []
 
     if carrier_rows:
@@ -308,7 +309,8 @@ def _carrier_actions(user) -> list[dict]:
             .execute()
         )
         carrier_invoices = inv_result.data or []
-    except Exception:
+    except Exception as exc:
+        logger.debug("actions: carrier invoice fetch failed for %s: %s", carrier_id, exc)
         carrier_invoices = []
 
     if carrier_invoices:
@@ -324,7 +326,8 @@ def _carrier_actions(user) -> list[dict]:
                 .execute()
             )
             pending_requests = req_result.data or []
-        except Exception:
+        except Exception as exc:
+            logger.debug("actions: pending doc requests fetch failed: %s", exc)
             pending_requests = []
 
         if pending_requests:
@@ -343,8 +346,8 @@ def _carrier_actions(user) -> list[dict]:
                         .execute()
                     )
                     loads_map = {ld["id"]: ld for ld in (ld_result.data or [])}
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("actions: carrier loads lookup failed: %s", exc)
 
             from app.config import settings as _settings
             dispatcher_url = getattr(_settings, "dispatcher_url", "http://localhost:3001").rstrip("/")
@@ -427,7 +430,8 @@ def _carrier_actions(user) -> list[dict]:
             .execute()
         )
         pending_invs = pending_inv_result.data or []
-    except Exception:
+    except Exception as exc:
+        logger.debug("actions: carrier pending invoices fetch failed: %s", exc)
         pending_invs = []
 
     if pending_invs:
@@ -442,8 +446,8 @@ def _carrier_actions(user) -> list[dict]:
                     .execute()
                 )
                 ld_data = {ld["id"]: ld for ld in (ld_r.data or [])}
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("actions: carrier loads fetch failed: %s", exc)
 
         for inv in pending_invs:
             load_id = inv.get("load_id")
@@ -479,7 +483,8 @@ def _carrier_actions(user) -> list[dict]:
             .execute()
         )
         followup_invs = followup_result.data or []
-    except Exception:
+    except Exception as exc:
+        logger.debug("actions: carrier followup invoices fetch failed: %s", exc)
         followup_invs = []
 
     for inv in followup_invs:

@@ -162,8 +162,8 @@ def create_load(
         c = next((c for c in _CARRIERS if c.get("id") == carrier_id), None)
         if c:
             carrier_name = c.get("legal_name", "—")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Carrier name lookup failed for %s: %s", carrier_id, exc)
 
     inv_id = str(uuid4())
     invoice_number = payload.rc_reference.strip() if payload.rc_reference and payload.rc_reference.strip() else inv_id[:8]
@@ -304,8 +304,8 @@ def update_load(
             return ok(result.data[0])
     except HTTPException:
         raise
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("DB update_load failed for %s, falling back to in-memory: %s", load_id, exc)
 
     for ld in _LOADS:
         if ld.get("id") != load_id:
@@ -428,7 +428,10 @@ def list_document_requests(
             .execute()
         )
         return ok([_serialize_document_request(row) for row in (result.data or [])])
-    except Exception:
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Failed to fetch document requests for load %s: %s", load_id, exc)
         return ok([])
 
 
@@ -481,8 +484,8 @@ def update_document_request(
         )
         if result.data:
             return ok(_serialize_document_request(result.data[0]))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.error("DB update document request %s failed: %s", request_id, exc)
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document request not found")
 
 
@@ -496,8 +499,12 @@ def delete_document_request(
     sb = get_supabase()
     try:
         sb.table("document_requests").delete().eq("id", request_id).eq("load_id", load_id).execute()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.error("Failed to delete document request %s: %s", request_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete document request",
+        ) from exc
     return ok({"deleted": True})
 
 

@@ -268,8 +268,8 @@ def create_invoice(
             from app.brokers.service import BrokerService
             broker = BrokerService().get_or_create_by_mc(payload.broker_mc)
             broker_id = broker.get("id")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Broker lookup failed for MC %s: %s", payload.broker_mc, exc)
 
     # Look up carrier name
     carrier_name = "—"
@@ -278,8 +278,8 @@ def create_invoice(
         c = next((c for c in carriers if c.get("id") == carrier_id), None)
         if c:
             carrier_name = c.get("legal_name", "—")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Carrier name lookup failed for %s: %s", carrier_id, exc)
 
     inv_id = str(uuid4())
     invoice_number = _normalize_invoice_number(

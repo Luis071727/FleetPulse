@@ -87,8 +87,8 @@ class CarrierService:
                 raise ValueError(f"DOT {dot_number} already in roster")
         except ValueError:
             raise
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("DB duplicate check failed for DOT %s, proceeding: %s", dot_number, exc)
 
         # Fetch from FMCSA (with cache)
         try:
@@ -152,13 +152,12 @@ class CarrierService:
                 .eq("organization_id", org_id)
             )
             if result.data:
-                # Also update in-memory
                 for c in _CARRIERS:
                     if c.get("id") == carrier_id:
                         c.update(updates)
                 return result.data[0]
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("DB update_carrier failed for %s: %s", carrier_id, exc)
 
         # Fallback: update in-memory
         for c in _CARRIERS:
@@ -192,8 +191,8 @@ class CarrierService:
                     raise ValueError(existing.data["id"])
             except ValueError:
                 raise
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("DB duplicate check failed for manual DOT %s, proceeding: %s", dot_number, exc)
 
         from uuid import uuid4
         row = {
