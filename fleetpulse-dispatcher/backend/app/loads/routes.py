@@ -260,7 +260,9 @@ def delete_load(
     load_id: str,
     user: CurrentUser = Depends(require_authenticated),
 ) -> ResponseEnvelope:
-    # Also soft-delete associated invoices (best-effort)
+    result = soft_delete_with_fallback("loads", load_id, user, _LOADS, entity_name="Load")
+
+    # Soft-delete associated invoices only after confirming load deletion
     is_dispatcher = user.role == "dispatcher_admin"
     now_iso = utc_now_iso()
     try:
@@ -270,7 +272,8 @@ def delete_load(
         inv_q.execute()
     except Exception:
         pass
-    return soft_delete_with_fallback("loads", load_id, user, _LOADS, entity_name="Load")
+
+    return result
 
 
 # ── Document Requests ──
