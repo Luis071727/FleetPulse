@@ -58,7 +58,7 @@ def signup(payload: SignupIn) -> ResponseEnvelope:
             raise HTTPException(status_code=429, detail="Too many signup attempts. Please wait a few minutes and try again.")
         if "password" in low and ("weak" in low or "short" in low or "length" in low):
             raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-        raise HTTPException(status_code=400, detail=f"Signup failed: {msg}")
+        raise HTTPException(status_code=400, detail="Signup failed")
 
 
 @router.post("/login")

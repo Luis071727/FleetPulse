@@ -1,4 +1,5 @@
 import logging
+import time
 from dataclasses import dataclass
 
 import httpx
@@ -9,8 +10,10 @@ from app.config import get_supabase, settings
 
 logger = logging.getLogger(__name__)
 
-# Cache of user lookups to avoid repeated DB hits per request
-_user_cache: dict[str, dict] = {}
+_USER_CACHE_TTL_SECONDS = 300  # 5 minutes
+
+# Cache of user lookups: sub -> (user_dict, cached_at_timestamp)
+_user_cache: dict[str, tuple[dict, float]] = {}
 
 # Cached JWKS keys for ES256 verification
 _jwks_cache: dict | None = None
@@ -87,13 +90,15 @@ def _resolve_user_from_sub(sub: str) -> CurrentUser:
     """Look up our app user row by the Supabase Auth uid (sub claim)."""
     # Check cache first
     if sub in _user_cache:
-        u = _user_cache[sub]
-        return CurrentUser(
-            user_id=u["id"],
-            organization_id=u.get("organization_id"),
-            carrier_id=u.get("carrier_id"),
-            role=u.get("role", "carrier_free"),
-        )
+        u, cached_at = _user_cache[sub]
+        if time.monotonic() - cached_at < _USER_CACHE_TTL_SECONDS:
+            return CurrentUser(
+                user_id=u["id"],
+                organization_id=u.get("organization_id"),
+                carrier_id=u.get("carrier_id"),
+                role=u.get("role", "carrier_free"),
+            )
+        del _user_cache[sub]
 
     sb = get_supabase()
     result = sb.table("users").select("*").eq("id", sub).maybe_single().execute()
@@ -122,7 +127,7 @@ def _resolve_user_from_sub(sub: str) -> CurrentUser:
                 "carrier_id": carrier.get("id"),
                 "role": "carrier_free",
             }
-            _user_cache[sub] = virtual
+            _user_cache[sub] = (virtual, time.monotonic())
             return CurrentUser(
                 user_id=sub,
                 organization_id=carrier.get("organization_id"),
@@ -150,7 +155,7 @@ def _resolve_user_from_sub(sub: str) -> CurrentUser:
         except Exception:
             pass
 
-    _user_cache[sub] = {**user, "carrier_id": carrier_id}
+    _user_cache[sub] = ({**user, "carrier_id": carrier_id}, time.monotonic())
     return CurrentUser(
         user_id=user["id"],
         organization_id=user.get("organization_id"),

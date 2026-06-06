@@ -68,7 +68,7 @@ def create_paperwork_request(
         )
     except Exception as exc:
         logger.exception("Failed to create paperwork request")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Failed to create paperwork request")
 
     return ok({
         "request_id": record.get("id"),
@@ -214,7 +214,7 @@ async def upload_document(
         raise HTTPException(status_code=status.HTTP_410_GONE, detail=str(exc))
     except Exception as exc:
         logger.exception("File upload failed")
-        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
+        raise HTTPException(status_code=500, detail="Upload failed")
 
     return ok({
         "document_id": doc.get("id"),
@@ -260,7 +260,7 @@ async def upload_document_direct(
         )
     except Exception as exc:
         logger.exception("Direct file upload failed")
-        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
+        raise HTTPException(status_code=500, detail="Upload failed")
 
     return ok({
         "document_id": doc.get("id"),

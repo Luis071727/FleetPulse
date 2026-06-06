@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
@@ -8,6 +10,7 @@ from app.invoices.routes import _enrich_invoices
 from app.invoices.service import InvoiceFollowupService
 from app.middleware.auth import CurrentUser, require_authenticated, require_dispatcher
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 _ai_service = AIService()
@@ -65,9 +68,10 @@ def analyze_load(
             force_refresh=payload.force_refresh,
         )
     except Exception as ex:
+        logger.exception("AI load analysis failed: %s", ex)
         raise HTTPException(
             status_code=503,
-            detail=f"AI service failure: {ex}",
+            detail="AI service temporarily unavailable",
         )
 
     return ok({
@@ -231,7 +235,9 @@ def invoice_followup(
 # ---------- POST /ai/insurance/playbook (Phase 2 stub) ----------
 
 @router.post("/insurance/playbook")
-def insurance_playbook() -> ResponseEnvelope:
+def insurance_playbook(
+    _user: CurrentUser = Depends(require_dispatcher),
+) -> ResponseEnvelope:
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail="Insurance Intelligence (Phase 2) not yet available",

@@ -1,7 +1,8 @@
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.common.schemas import ResponseEnvelope, ok
 from app.config import get_supabase
@@ -12,10 +13,10 @@ router = APIRouter(prefix="/feedback", tags=["feedback"])
 
 
 class FeedbackIn(BaseModel):
-    category: str = "bug"          # bug, feature, ux, other
-    page: str | None = None        # auto-captured from frontend
-    description: str
-    severity: str = "medium"       # low, medium, high, critical
+    category: Literal["bug", "feature", "ux", "other"] = "bug"
+    page: str | None = Field(default=None, max_length=500)
+    description: str = Field(min_length=1, max_length=5000)
+    severity: Literal["low", "medium", "high", "critical"] = "medium"
 
 
 @router.post("", response_model=ResponseEnvelope)

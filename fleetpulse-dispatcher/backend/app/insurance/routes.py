@@ -1,8 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.common.schemas import ErrorEnvelope, ResponseEnvelope
 from app.insurance.service import InsuranceService
+from app.middleware.auth import CurrentUser, require_dispatcher
 
 
 router = APIRouter(prefix="/insurance", tags=["insurance"])
@@ -20,7 +21,10 @@ class MvrIn(BaseModel):
 
 
 @router.post("/mvr")
-def pull_mvr(payload: MvrIn) -> ResponseEnvelope:
+def pull_mvr(
+    payload: MvrIn,
+    _user: CurrentUser = Depends(require_dispatcher),
+) -> ResponseEnvelope:
     try:
         result = service.request_mvr(carrier_id=payload.carrier_id, consent=payload.consent)
         return ResponseEnvelope(data=result, error=None, meta={})
@@ -33,6 +37,9 @@ def pull_mvr(payload: MvrIn) -> ResponseEnvelope:
 
 
 @router.post("/datqs/challenge")
-def generate_dataqs_challenge(payload: DataQsIn) -> ResponseEnvelope:
+def generate_dataqs_challenge(
+    payload: DataQsIn,
+    _user: CurrentUser = Depends(require_dispatcher),
+) -> ResponseEnvelope:
     challenge = service.build_dataqs_challenge(carrier_id=payload.carrier_id, event_id=payload.event_id)
     return ResponseEnvelope(data=challenge, error=None, meta={})

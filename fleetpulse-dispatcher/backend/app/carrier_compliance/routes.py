@@ -88,7 +88,7 @@ def create_carrier_doc_request(
         )
     except Exception as exc:
         logger.exception("Failed to create carrier doc request")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Failed to create carrier doc request")
 
     return ok({
         "request_id": record.get("id"),
@@ -158,7 +158,7 @@ async def upload_carrier_document(
         raise HTTPException(status_code=status.HTTP_410_GONE, detail=str(exc))
     except Exception as exc:
         logger.exception("Carrier file upload failed")
-        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
+        raise HTTPException(status_code=500, detail="Upload failed")
 
     return ok({
         "document_id": doc.get("id"),
@@ -204,7 +204,7 @@ async def upload_carrier_document_direct(
         )
     except Exception as exc:
         logger.exception("Direct carrier file upload failed")
-        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
+        raise HTTPException(status_code=500, detail="Upload failed")
 
     return ok({
         "document_id": doc.get("id"),
@@ -255,7 +255,7 @@ async def renew_carrier_document(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     except Exception as exc:
         logger.exception("Carrier document renewal failed")
-        raise HTTPException(status_code=500, detail=f"Renewal failed: {exc}")
+        raise HTTPException(status_code=500, detail="Renewal failed")
 
     return ok({
         "document_id": doc.get("id"),
